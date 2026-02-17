@@ -312,7 +312,6 @@ def main():
     # np.random.seed(0)
     # unknown_face = np.random.rand(1, dataset.X_flat.shape[1])
 
-    print("Generazione volto simulato (rumore casuale)...")
     print(f"Shape: {unknown_face.shape}")
 
     label, distance = recognizer.detect_unknown(

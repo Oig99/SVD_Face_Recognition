@@ -250,8 +250,8 @@ class Visualizer:
 
         # Volto simulato
         plt.imshow(unknown_face.reshape(X.shape[1], X.shape[2]), cmap='gray')
-        plt.title("Volto simulato (rumore)")
         plt.axis("off")
+        th = th/100
 
         plt.suptitle(
             f"Min dist: {distance:.3f} | Threshold: {th}\n"
