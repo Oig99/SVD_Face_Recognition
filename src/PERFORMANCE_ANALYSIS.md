@@ -264,19 +264,21 @@ SVM RBF:    91% accuracy, 20s    → 50 predictions/s
 
 ### 5.2 Compression vs Reconstruction Quality
 
-**Olivetti:**
-| n_components | Energia | MSE | Compression |
-|--------------|---------|-----|-------------|
-| 50           | 92%     | 0.004 | 82x |
-| 70           | 95%     | 0.002 | 58x |
-| 100          | 97%     | 0.001 | 41x |
+**Olivetti**
 
-**LFW:**
-| n_components | Energia | MSE | Compression |
-|--------------|---------|-----|-------------|
-| 100          | 90%     | 0.020 | 25x |
-| 140          | 95%     | 0.012 | 18x |
-| 200          | 98%     | 0.008 | 12.5x |
+| n_components | Energia |  MSE  | Compression |
+|--------------|---------|-------|------------|
+| 50           | 92%     | 0.004 | 82x        |
+| 70           | 95%     | 0.002 | 58x        |
+| 100          | 97%     | 0.001 | 41x        |
+
+**LFW**
+
+| n_components | Energia |  MSE  | Compression |
+|--------------|---------|-------|------------|
+| 100          | 90%     | 0.020 | 25x        |
+| 140          | 95%     | 0.012 | 18x        |
+| 200          | 98%     | 0.008 | 12.5x      |
 
 **Recommendation**: 95% energia è un buon compromesso per entrambi
 
