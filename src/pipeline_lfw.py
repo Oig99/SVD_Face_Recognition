@@ -19,7 +19,7 @@ def main():
 
     # === CARICAMENTO DATASET ===
     dataset = DataLoader()
-    dataset.X, dataset.X_flat, dataset.y = dataset.load_lfw_data()  # o load_ftw_data()
+    dataset.X, dataset.X_flat, dataset.y = dataset.load_lfw_data()
 
     print(f"Shape immagini: {dataset.X.shape}")
     print(f"Shape flatten: {dataset.X_flat.shape}")
@@ -32,6 +32,10 @@ def main():
     dataset.X_centered = dataset.center_data()
     print(f"Shape dati centrati: {dataset.X_centered.shape}")
     print(f"Media dei dati centrati: {np.mean(dataset.X_centered):.10f}")
+
+
+    varianza_totale = np.var(dataset.X_centered, axis=0).sum()
+    print(f"\nVarianza totale dei dati centrati: {varianza_totale:.6f}")
 
     viz.plot_mean_face_lfw(dataset.mean_face, dataset.X)
 
@@ -52,6 +56,18 @@ def main():
     print(f"Energia effettiva: {energy[n_components - 1] * 100:.2f}%")
     print(f"Riduzione dimensionale: {dataset.X_flat.shape[1]} → {n_components}")
     print(f"Fattore di compressione: {dataset.X_flat.shape[1] / n_components:.2f}x")
+
+
+    # === VARIANZA SPIEGATA DAI COMPONENTI PRINCIPALI ===
+    varianza_componenti = (S ** 2) / (dataset.X_centered.shape[0] - 1)
+    varianza_totale_svd = varianza_componenti.sum()
+    varianza_spiegata = np.sum(varianza_componenti[:n_components]) / varianza_totale_svd * 100
+    varianza_residua = varianza_totale_svd - np.sum(varianza_componenti[:n_components])
+
+    print(f"\nVarianza totale (SVD): {varianza_totale_svd:.6f}")
+    print(f"Varianza spiegata dai primi {n_components} componenti: {varianza_spiegata:.2f}%")
+    print(f"Varianza residua dopo riduzione dimensionale: {varianza_residua:.6f}")
+
 
     viz.plot_cumulative_energy(energy)
 

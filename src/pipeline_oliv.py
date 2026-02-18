@@ -40,6 +40,9 @@ def main():
     print(f"Shape dati centrati: {dataset.X_centered.shape}")
     print(f"Media dei dati centrati: {np.mean(dataset.X_centered):.10f}")
 
+    varianza_totale = np.var(dataset.X_centered, axis=0).sum()
+    print(f"\nVarianza totale dei dati centrati: {varianza_totale:.6f}")
+
     # Visualizza volto medio
     viz.plot_mean_face(dataset.mean_face)
 
@@ -48,7 +51,7 @@ def main():
     svd_reducer = SVDReducerEngine(energy_threshold=0.95)
     U, S, VT, energy = svd_reducer.compute_full_svd(dataset.X_centered)
 
-    print(f"Shape U: {U.shape}")
+    print(f"\nShape U: {U.shape}")
     print(f"Shape S: {S.shape}")
     print(f"Shape V^T: {VT.shape}")
     print(f"\nPrimi 5 valori singolari: {S[:5]}")
@@ -68,9 +71,20 @@ def main():
     # Visualizza energia cumulativa
     viz.plot_cumulative_energy(energy)
 
+    # === VARIANZA SPIEGATA DAI COMPONENTI PRINCIPALI ===
+    varianza_componenti = (S ** 2) / (dataset.X_centered.shape[0] - 1)
+    varianza_totale_svd = varianza_componenti.sum()
+    varianza_spiegata = np.sum(varianza_componenti[:n_components]) / varianza_totale_svd * 100
+    varianza_residua = varianza_totale_svd - np.sum(varianza_componenti[:n_components])
+
+    print(f"\nVarianza totale (SVD): {varianza_totale_svd:.6f}")
+    print(f"Varianza spiegata dai primi {n_components} componenti: {varianza_spiegata:.2f}%")
+    print(f"Varianza residua dopo riduzione dimensionale: {varianza_residua:.6f}")
+
     # === RIDUZIONE DIMENSIONALE ===
     X_reduced = svd_reducer.fit_transform(dataset.X_centered)
-    print(f"Shape dati ridotti: {X_reduced.shape}")
+
+    print(f"\nShape dati ridotti: {X_reduced.shape}")
 
 
     # Ricostruzione dei volti dallo spazio ridotto
@@ -204,10 +218,9 @@ def main():
     print(f"KNN Accuracy: {knn_acc * 100:.2f}%")
     print(f"SVM Lineare Accuracy: {lin_acc * 100:.2f}%")
     print(f"SVM RBF Accuracy: {rbf_acc * 100:.2f}%")
-    print(f"Best SVM (GridSearch) Accuracy: {best_acc * 100:.2f}%")
 
     if best_acc > knn_acc:
-        print("\n→ SVM performa meglio di KNN")
+        print("\n SVM performa meglio di KNN")
     else:
         print("\n→ KNN performa meglio di SVM")
 
@@ -267,6 +280,10 @@ def main():
         print(f"{pair}: {count} volte")
 
 
+    best_params, best_score = recognizer.optimize_hyperparameters(X_train, y_train)
+    print("\nKNN; best_params:", best_params, "best_score:", best_score)
+
+
     # === ANALISI DISTANZE ===
 
     distances_train = recognizer.compute_min_distances(X_train, X_train)
@@ -307,7 +324,7 @@ def main():
     # Aggiungi dimensione batch
     unknown_face = unknown_face.reshape(1, -1)
     face_centered = unknown_face - dataset.mean_face
-    face_svd = svd_reducer.transform(face_centered)
+    svd_reducer.transform(face_centered)
 
     # np.random.seed(0)
     # unknown_face = np.random.rand(1, dataset.X_flat.shape[1])

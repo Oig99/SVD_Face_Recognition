@@ -15,11 +15,12 @@ class FaceRecognizer:
     - Analisi distanze
     - Riconoscimento volti sconosciuti
     """
-    def __init__(self,  n_neighbors=1, unknown_threshold=0.5, kernel='rbf', C=10, gamma='scale'):
+    def __init__(self, n_neighbors=1, unknown_threshold=0.5, kernel='rbf', C=10, gamma='scale', metric="manhattan", wgs="uniform", singular_values=None):
         self.n_neighbors = n_neighbors # Parametri del classificatore
         self.unknown_threshold = unknown_threshold # Soglia per decidere se un volto è sconosciuto
-        self.knn = KNeighborsClassifier(n_neighbors=self.n_neighbors, metric="manhattan", weights="uniform")
-        self.svm = SVC(kernel=kernel, C=C, gamma=gamma)
+        self.knn = KNeighborsClassifier(n_neighbors=self.n_neighbors, metric=metric, weights=wgs)
+        self.svm = SVC(kernel=kernel, C=C, gamma=gamma, probability=True)
+        self.singular_values = singular_values
 
     def train_knn(self, X_train, y_train):
         """
@@ -41,10 +42,6 @@ class FaceRecognizer:
         e i punti nel training set.
         Utile per analisi soglia unknown.
         """
-        # distances = [
-        #     np.min(euclidean_distances([x], X_train))
-        #     for x in X_test
-        # ]
         distances = euclidean_distances(X_test, X_train)
         distances = np.min(distances, axis=1)
         return distances
@@ -183,7 +180,7 @@ class FaceRecognizer:
         distances = self.compute_min_distances(X_val, X_train)
 
         # Usa il 95° percentile come soglia ottimale
-        optimal_threshold = np.percentile(distances, 95)
+        optimal_threshold = np.mean(distances) + 2 * np.std(distances)
         self.unknown_threshold = optimal_threshold
 
         return {
@@ -235,24 +232,6 @@ class FaceRecognizer:
 
         return grid.best_params_, grid.best_score_
 
-    def detect_unknown_svm(self, face, mean_face, svd_reducer, X_train):
-        """
-        Unknown detection usando SVM + distanza nello spazio SVD.
-        """
-        if self.svm is None:
-            raise ValueError("SVM non addestrata.")
-
-        face_centered = face - mean_face
-        face_svd = svd_reducer.transform(face_centered)
-
-        min_dist = np.min(euclidean_distances(face_svd, X_train))
-
-        if min_dist > self.unknown_threshold:
-            return "UNKNOWN", min_dist
-        else:
-            predicted_id = self.svm.predict(face_svd)[0]
-            return predicted_id, min_dist
-
     def predict_svm_with_distance(self, face_svd):
         """
         Restituisce predizione SVM + distanza dal margine.
@@ -280,16 +259,17 @@ class FaceRecognizer:
 
         # ===================== KNN =====================
         start = time.time()
+        cv_scores = cross_val_score(self.knn, X_train, y_train, cv=5)
+        knn_acc = cv_scores.mean()
         self.train_knn(X_train, y_train)
-        y_pred_knn = self.evaluate_knn(X_test, y_test)
+        y_pred_knn = self.knn.predict(X_test)
         knn_time = time.time() - start
-        knn_acc = accuracy_score(y_test, y_pred_knn)
         results['KNN'] = {'accuracy': knn_acc, 'time': knn_time, 'y_pred': y_pred_knn}
         print(f"KNN Accuracy: {knn_acc * 100:.2f}%, Time: {knn_time:.4f}s")
 
         # ===================== SVM LINEARE =====================
         start = time.time()
-        svm_lin = SVC(kernel='linear', C=1)
+        svm_lin = SVC(kernel='linear', C=1, probability=True)
         svm_lin.fit(X_train, y_train)
         y_pred_lin = svm_lin.predict(X_test)
         lin_time = time.time() - start
@@ -299,7 +279,7 @@ class FaceRecognizer:
 
         # ===================== SVM RBF =====================
         start = time.time()
-        svm_rbf = SVC(kernel='rbf', C=10, gamma='scale')
+        svm_rbf = SVC(kernel='rbf', C=10, gamma='scale', probability=True)
         svm_rbf.fit(X_train, y_train)
         y_pred_rbf = svm_rbf.predict(X_test)
         rbf_time = time.time() - start
