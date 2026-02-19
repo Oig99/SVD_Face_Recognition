@@ -51,7 +51,7 @@ class Visualizer:
 
     def plot_mean_face_lfw(self, mean_face, X):
         """
-        Visualizza il volto medio del dataset.
+        Visualizza il volto medio del dataset. (è una versione con le dimensioni reali)
         """
         plt.figure(figsize=(4, 4))
         h, w = X.shape[1], X.shape[2]  # dimensioni reali dataset
@@ -83,7 +83,7 @@ class Visualizer:
 
     def plot_eigenfaces_lfw(self, VT, X, n_components=10):
         """
-        Visualizza le prime eigenfaces (componenti principali).
+        Visualizza le prime eigenfaces (componenti principali), adattamento per il dataset LFW.
         """
         h, w = X.shape[1], X.shape[2]
 
@@ -137,7 +137,6 @@ class Visualizer:
         filepath = os.path.join(self.path, 'projection.png')
         plt.savefig(filepath)
         plt.show()
-        
 
     
     def plot_confusion_matrix(self, y_test, y_pred):
@@ -178,7 +177,7 @@ class Visualizer:
 
     def plot_original_vs_reconstructed(self, X_original, X_reconstructed, y_true, num_samples=5, shape=(64, 64)):
         """
-        Mostra affiancati il volto originale e quello ricostruito.
+        Visualizza affiancati il volto originale e quello ricostruito.
         """
         num_samples = min(num_samples, len(X_original))  # sicurezza
 
@@ -245,6 +244,10 @@ class Visualizer:
         df.to_excel(os.path.join(self.path, filename))
 
     def plot_new_faces(self, unknown_face, X, distance, label, th):
+        """
+        Visualizza la ricostruzione di un volto esterno (o sintetico).
+        Unknown detection
+        """
         # Plot
         plt.figure(figsize=(4, 4))
 

@@ -191,9 +191,9 @@ def main():
     print(f"Best SVM (GridSearch) Accuracy: {best_acc * 100:.2f}%")
 
     if best_acc > knn_acc:
-        print("\n→ SVM performa meglio di KNN")
+        print("\n SVM performa meglio di KNN")
     else:
-        print("\n→ KNN performa meglio di SVM")
+        print("\n KNN performa meglio di SVM")
 
     # Salvataggio risultati
     comparison = {

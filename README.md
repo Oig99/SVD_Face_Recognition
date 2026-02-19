@@ -4,6 +4,24 @@
 
 ---
 
+## Executive Summary
+
+Questo progetto implementa una pipeline completa di face recognition basata su **Singular Value Decomposition (SVD)** ed eigenfaces, confrontando le performance su due scenari radicalmente diversi:
+
+- **Dataset controllato** (Olivetti)
+- **Dataset in-the-wild** (LFW)
+
+I risultati mostrano che:
+
+- La SVD consente una compressione fino a **33×** mantenendo il 95% dell’energia informativa.
+- Il passaggio da condizioni controllate a scenari realistici comporta un calo di accuratezza fino a **19 punti percentuali**.
+- In ambienti a bassa variabilità, **KNN è competitivo con SVM**.
+- In scenari ad alta variabilità intra-classe, **SVM lineare risulta significativamente più robusta**.
+
+L’obiettivo non è competere con approcci deep learning moderni, ma **quantificare in modo interpretabile l’impatto della variabilità del dato su un metodo lineare classico**.
+
+---
+
 ## Indice
 
 1. [Panoramica del Progetto](#panoramica-del-progetto)
@@ -233,6 +251,7 @@ La deviazione standard è simile in valore assoluto sui due dataset. Tuttavia, i
 | Riduzione dimensionale | 0.31 s | 0.40 s |
 
 I tempi rimangono contenuti su entrambi i dataset grazie all'uso di `TruncatedSVD` (algoritmo randomizzato) per la fase di trasformazione. Il collo di bottiglia è il Grid Search SVM, che con 5-fold e 16 combinazioni di iperparametri richiede qualche minuto su LFW.
+> Esperimenti eseguiti su CPU Intel i7 (8 core), 16GB RAM. I tempi possono variare in base all’hardware.
 
 ### Errore di Ricostruzione
 
@@ -259,21 +278,36 @@ L'errore di ricostruzione è basso su entrambi i dataset. Su Olivetti la distrib
 
 **La cross-validation conferma la solidità dei modelli.** La deviazione standard delle accuracy è limitata su entrambi i dataset, indicando che le performance osservate non sono artefatti del particolare split train/test.
 
+---
+
+### Limitazioni del Progetto
+
+Nonostante la pipeline sia completa e rigorosa, presenta alcune limitazioni:
+
+- **Nessun face alignment esplicito**: le immagini non vengono riallineate tramite landmark facciali.
+- **Preprocessing limitato**: non vengono applicate tecniche di equalizzazione dell’illuminazione (es. CLAHE).
+- **Nessuna data augmentation**: il training set non viene artificialmente espanso.
+- **Dataset relativamente piccoli** rispetto agli standard moderni.
+- **Assenza di embedding deep learning**, che rappresentano lo stato dell’arte nel face recognition.
+
+Queste limitazioni sono intenzionali: il focus del progetto è analizzare il comportamento di una pipeline lineare interpretabile
+
+
 ### Possibili Miglioramenti
 
-**Preprocessing più aggressivo su LFW.** Normalizzazione dell'istogramma (CLAHE), allineamento facciale tramite detezione dei landmark (occhi, naso, bocca) e ritaglio standardizzato ridurrebbero la varianza intra-classe causata da illuminazione e posa.
+- **Preprocessing più aggressivo su LFW.** Normalizzazione dell'istogramma (CLAHE), allineamento facciale tramite detezione dei landmark (occhi, naso, bocca) e ritaglio standardizzato ridurrebbero la varianza intra-classe causata da illuminazione e posa.
 
-**Data augmentation.** Rotazioni, flip orizzontali, jitter di luminosità e zoom potrebbero aumentare artificialmente la dimensione del training set su LFW, dove alcune classi hanno pochi esempi, rendendo i modelli più robusti alle trasformazioni geometriche e fotometriche.
+- **Data augmentation.** Rotazioni, flip orizzontali, jitter di luminosità e zoom potrebbero aumentare artificialmente la dimensione del training set su LFW, dove alcune classi hanno pochi esempi, rendendo i modelli più robusti alle trasformazioni geometriche e fotometriche.
 
-**Tecniche di bilanciamento delle classi.** Su LFW la distribuzione delle classi non è uniforme. Tecniche come SMOTE (Synthetic Minority Oversampling) o class weighting nell'SVM potrebbero ridurre il bias del classificatore verso le classi più rappresentate.
+- **Tecniche di bilanciamento delle classi.** Su LFW la distribuzione delle classi non è uniforme. Tecniche come SMOTE (Synthetic Minority Oversampling) o class weighting nell'SVM potrebbero ridurre il bias del classificatore verso le classi più rappresentate.
 
-**Deep learning per feature extraction.** Reti pre-addestrate come FaceNet, ArcFace o DeepFace producono embedding in 128-512 dimensioni con proprietà metriche ottimali (stessa classe → distanze piccole, classi diverse → distanze grandi). Combinare questi embedding con un classificatore SVM o un classificatore coseno potrebbe portare le accuracy su LFW oltre il 95%.
+- **Deep learning per feature extraction.** Reti pre-addestrate come FaceNet, ArcFace o DeepFace producono embedding in 128-512 dimensioni con proprietà metriche ottimali (stessa classe → distanze piccole, classi diverse → distanze grandi). Combinare questi embedding con un classificatore SVM o un classificatore coseno potrebbe portare le accuracy su LFW oltre il 95%.
 
-**Confronto diretto SVD vs PCA.** PCA (analisi delle componenti principali tramite decomposizione degli autovalori della matrice di covarianza) è la procedura statistica equivalente alla SVD sulla matrice centrata. Un confronto diretto in termini di componenti selezionate, qualità di ricostruzione e accuracy finale potrebbe quantificare le differenze computative e numeriche tra i due approcci.
+- **Confronto diretto SVD vs PCA.** PCA (analisi delle componenti principali tramite decomposizione degli autovalori della matrice di covarianza) è la procedura statistica equivalente alla SVD sulla matrice centrata. Un confronto diretto in termini di componenti selezionate, qualità di ricostruzione e accuracy finale potrebbe quantificare le differenze computative e numeriche tra i due approcci.
 
-**Soglia unknown adattiva.** La soglia attuale (95° percentile delle distanze) è calcolata globalmente. Una versione per-classe — dove ogni classe ha la propria soglia calibrata sulle distanze intra-classe — potrebbe migliorare sensibilmente il rilevamento di volti sconosciuti, specialmente su LFW dove le distanze variano molto tra classi.
+- **Soglia unknown adattiva.** La soglia attuale (95° percentile delle distanze) è calcolata globalmente. Una versione per-classe — dove ogni classe ha la propria soglia calibrata sulle distanze intra-classe — potrebbe migliorare sensibilmente il rilevamento di volti sconosciuti, specialmente su LFW dove le distanze variano molto tra classi.
 
-**Metriche di distanza alternative.** Sostituire la distanza euclidea con la distanza di Mahalanobis (che tiene conto della covarianza delle feature) o il cosine similarity potrebbe rendere il KNN e la soglia unknown più robusti alla varianza non uniforme nello spazio SVD.
+- **Metriche di distanza alternative.** Sostituire la distanza euclidea con la distanza di Mahalanobis (che tiene conto della covarianza delle feature) o il cosine similarity potrebbe rendere il KNN e la soglia unknown più robusti alla varianza non uniforme nello spazio SVD.
 
 ---
 
@@ -326,8 +360,27 @@ Ogni pipeline genera:
 
 ## Riferimenti
 
+### SVD ed Eigenfaces
+
 - Turk, M., & Pentland, A. (1991). *Eigenfaces for Recognition*. Journal of Cognitive Neuroscience, 3(1), 71–86.
-- Huang, G. B., et al. (2007). *Labeled Faces in the Wild: A Database for Studying Face Recognition in Unconstrained Environments*. University of Massachusetts, Amherst.
-- Samaria, F. S., & Harter, A. C. (1994). *Parameterisation of a stochastic model for human face identification*. AT&T Laboratories Cambridge.
 - Golub, G. H., & Van Loan, C. F. (2013). *Matrix Computations* (4th ed.). Johns Hopkins University Press.
+- Alexandervfalverdeguillen (2023). *SVD and Face Decomposition*. Medium. https://medium.com/@alexandervalverdeguillen/svd-and-face-recognition-873801770b17
+
+### K-Nearest Neighbors (KNN)
+
+- Cover, T., & Hart, P. (1967). *Nearest Neighbor Pattern Classification*. IEEE Transactions on Information Theory, 13(1), 21–27.
+- Hastie, T., Tibshirani, R., & Friedman, J. (2009). *The Elements of Statistical Learning*. Springer. (Capitolo 2)
+
+### Support Vector Machines (SVM)
+
+- Cortes, C., & Vapnik, V. (1995). *Support-Vector Networks*. Machine Learning, 20, 273–297.
+- Scholkopf, B., & Smola, A. (2002). *Learning with Kernels*. MIT Press.
+
+### Dataset
+
+- Samaria, F. S., & Harter, A. C. (1994). *Parameterisation of a stochastic model for human face identification*. AT&T Laboratories Cambridge.
+- Huang, G. B., et al. (2007). *Labeled Faces in the Wild: A Database for Studying Face Recognition in Unconstrained Environments*. University of Massachusetts, Amherst.
+
+### Librerie
+
 - Pedregosa, F., et al. (2011). *Scikit-learn: Machine Learning in Python*. JMLR 12, 2825–2830.

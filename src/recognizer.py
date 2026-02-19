@@ -16,6 +16,7 @@ class FaceRecognizer:
     - Riconoscimento volti sconosciuti
     """
     def __init__(self, n_neighbors=1, unknown_threshold=0.5, kernel='rbf', C=10, gamma='scale', metric="manhattan", wgs="uniform", singular_values=None):
+        self.y_train = None
         self.n_neighbors = n_neighbors # Parametri del classificatore
         self.unknown_threshold = unknown_threshold # Soglia per decidere se un volto è sconosciuto
         self.knn = KNeighborsClassifier(n_neighbors=self.n_neighbors, metric=metric, weights=wgs)
@@ -27,6 +28,7 @@ class FaceRecognizer:
         Addestra il classificatore KNN.
         """
         self.knn.fit(X_train, y_train)
+        self.y_train = y_train
 
     def evaluate_knn(self, X_test, y_test):
         """
@@ -157,14 +159,15 @@ class FaceRecognizer:
         predictions = self.knn.predict(X_test)
 
         results = []
+
         for i, pred in enumerate(predictions):
             avg_distance = distances[i].mean()
             distance_confidence = 1 / (1 + avg_distance)
 
-            neighbor_labels = self.knn._y[indices[i]]
+            neighbor_labels = self.y_train[indices[i]]
             consensus = (neighbor_labels == pred).sum() / len(neighbor_labels)
 
-            combined_confidence = (distance_confidence * 0.5 + consensus * 0.5)
+            combined_confidence = 0.5 * distance_confidence + 0.5 * consensus
 
             results.append({
                 'prediction': pred,
@@ -179,7 +182,6 @@ class FaceRecognizer:
         """Calcola automaticamente la soglia ottimale per unknown detection."""
         distances = self.compute_min_distances(X_val, X_train)
 
-        # Usa il 95° percentile come soglia ottimale
         optimal_threshold = np.mean(distances) + 2 * np.std(distances)
         self.unknown_threshold = optimal_threshold
 

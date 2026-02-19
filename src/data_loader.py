@@ -42,9 +42,9 @@ class DataLoader:
         """
         olivetti_data = fetch_olivetti_faces(random_state=self.random_state, shuffle=True)
         self.X = olivetti_data.images
-        Y = olivetti_data.target
+        self.y = olivetti_data.target
         self.X_flat = self.X.reshape((self.X.shape[0], -1))
-        return self.X, self.X_flat, Y
+        return self.X, self.X_flat, self.y
 
     def center_data(self):
         """
@@ -61,6 +61,8 @@ class DataLoader:
 
     def dataset_splitting(self, X_reduced):
         """ Divide i dati ridotti in training e test set. """
+        if self.y is None:
+            raise ValueError("Le etichette non sono state caricate.")
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
             X_reduced,
             self.y,
