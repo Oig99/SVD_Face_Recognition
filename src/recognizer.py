@@ -10,10 +10,11 @@ from sklearn.svm import SVC
 class FaceRecognizer:
     """
     Classe responsabile di:
-    - Addestramento KNN
-    - Valutazione performance
-    - Analisi distanze
-    - Riconoscimento volti sconosciuti
+    - Addestramento e valutazione KNN
+    - Addestramento e ottimizzazione SVM
+    - Analisi degli errori
+    - Stima soglia per unknown detection
+    - Confronto tra classificatori
     """
     def __init__(self, n_neighbors=1, unknown_threshold=0.5, kernel='rbf', C=10, gamma='scale', metric="manhattan", wgs="uniform", singular_values=None):
         self.y_train = None
@@ -23,16 +24,19 @@ class FaceRecognizer:
         self.svm = SVC(kernel=kernel, C=C, gamma=gamma, probability=True)
         self.singular_values = singular_values
 
+    # ---------------------------- KNN ----------------------------
     def train_knn(self, X_train, y_train):
         """
-        Addestra il classificatore KNN.
+        Addestra il KNN nello spazio SVD.
+
+        KNN è un metodo non parametrico: memorizza i campioni e basa la decisione sulla prossimità locale.
         """
         self.knn.fit(X_train, y_train)
         self.y_train = y_train
 
     def evaluate_knn(self, X_test, y_test):
         """
-        Valuta il modello e stampa precision, recall, f1-score.
+        Esegue predizione su test set. Restituisce le etichette predette.
         """
         y_pred = self.knn.predict(X_test)
         return y_pred
@@ -40,9 +44,9 @@ class FaceRecognizer:
     @staticmethod
     def compute_min_distances(X_test, X_train):
         """
-        Calcola la distanza minima euclidea tra ogni punto test
-        e i punti nel training set.
+        Calcola, per ogni punto di test, la distanza minima dai campioni del training set.
         Utile per analisi soglia unknown.
+        Geometricamente misura quanto un punto è "vicino" alla distribuzione delle classi note.
         """
         distances = euclidean_distances(X_test, X_train)
         distances = np.min(distances, axis=1)
@@ -50,7 +54,12 @@ class FaceRecognizer:
 
     def detect_unknown(self, face, mean_face, svd_reducer, X_train):
         """
-        Determina se un volto è conosciuto o sconosciuto usando KNN.
+        Implementa una semplice open-set recognition.
+        Procedura:
+        1. Centratura del volto rispetto al mean face
+        2. Proiezione nello spazio SVD
+        3. Calcolo distanza minima dal training set
+        4. Confronto con soglia θ
         """
         # Applica riduzione SVD se serve
         face_reduced = svd_reducer.transform(face - mean_face)
@@ -64,10 +73,16 @@ class FaceRecognizer:
             predicted_id = self.knn.predict(face_reduced)[0]
             return predicted_id, min_dist
 
+    # ---------------------------- Cross Validation e Analisi Errori ----------------------------
 
     def cross_validate(self, X, y, cv=5):
         """
-        Esegue cross-validation stratificata per valutare la robustezza del modello.
+        Esegue una valutazione della robustezza del modello tramite Stratified K-Fold cross-validation.
+
+        Restituisce:
+        - media accuracy
+        - deviazione standard
+        - intervallo di confidenza approx (±2σ)
         """
         skf = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
         scores = cross_val_score(self.knn, X, y, cv=skf, scoring='accuracy')
@@ -79,11 +94,15 @@ class FaceRecognizer:
             'confidence_interval inf': float(scores.mean() - 2 * scores.std()),
             'confidence_interval sup': float(scores.mean() + 2 * scores.std()),
         }
-
         return result
 
     def analyze_misclassifications(self, X_test, y_test, y_pred):
-        """Analizza pattern negli errori."""
+        """
+        Analizza gli errori per identificare pattern sistematici.
+        Identifica:
+        - campioni mal classificati
+        - coppie di classi più frequentemente confuse
+        """
         errors = defaultdict(list)
 
         for i, (true_label, pred_label) in enumerate(zip(y_test, y_pred)):
@@ -111,8 +130,17 @@ class FaceRecognizer:
 
         return errors
 
+    # ---------------------------- Ottimizzazione Iperparametri ----------------------------
+
     def optimize_hyperparameters(self, X_train, y_train):
-        """Trova automaticamente i migliori iperparametri."""
+        """Trova automaticamente i migliori iperparametri.
+        Ricerca dei migliori iperparametri KNN tramite GridSearch.
+
+        Esplora:
+        - numero di vicini
+        - metrica di distanza
+        - schema di pesatura
+        """
         param_grid = {
             'n_neighbors': [1, 3, 5, 7, 9],
             'weights': ['uniform', 'distance'],
@@ -135,6 +163,8 @@ class FaceRecognizer:
         self.n_neighbors = grid_search.best_params_['n_neighbors']
 
         return grid_search.best_params_, grid_search.best_score_
+
+
 
     def predict_with_confidence_svm(self, X_test_svd):
         """
@@ -195,15 +225,21 @@ class FaceRecognizer:
             }
         }
 
+
+    # ---------------------------- SVM ----------------------------
+
     def train_svm(self, X_train, y_train):
         """
-        Addestra un classificatore SVM.
+        Addestra SVM nello spazio SVD.
+
+        L'SVM costruisce un iperpiano con margine massimo
+        tra le classi.
         """
         self.svm.fit(X_train, y_train)
 
     def evaluate_svm(self, X_test):
         """
-        Predice usando SVM.
+        Predizione tramite SVM già addestrata.
         """
         if self.svm is None:
             raise ValueError("SVM non addestrata. Chiama train_svm prima.")
@@ -211,7 +247,12 @@ class FaceRecognizer:
 
     def optimize_svm(self, X_train, y_train, cv=5):
         """
-        Ottimizza automaticamente SVM con GridSearch.
+        Ricerca automatica iperparametri SVM.
+
+        Esplora:
+        - C (regolarizzazione)
+        - kernel (linear, rbf)
+        - gamma (per RBF)
         """
         param_grid = {
             'C': [0.1, 1, 10, 100],
@@ -236,7 +277,12 @@ class FaceRecognizer:
 
     def predict_svm_with_distance(self, face_svd):
         """
-        Restituisce predizione SVM + distanza dal margine.
+        Restituisce:
+        - predizione
+        - distanza dal margine decisionale
+
+        Il valore della decision_function rappresenta
+        quanto il punto è distante dall'iperpiano separatore.
         """
         if self.svm is None:
             raise ValueError("SVM non addestrata.")
@@ -259,7 +305,7 @@ class FaceRecognizer:
         """
         results = {}
 
-        # ===================== KNN =====================
+        #  KNN 
         start = time.time()
         cv_scores = cross_val_score(self.knn, X_train, y_train, cv=5)
         knn_acc = cv_scores.mean()
@@ -269,7 +315,7 @@ class FaceRecognizer:
         results['KNN'] = {'accuracy': knn_acc, 'time': knn_time, 'y_pred': y_pred_knn}
         print(f"KNN Accuracy: {knn_acc * 100:.2f}%, Time: {knn_time:.4f}s")
 
-        # ===================== SVM LINEARE =====================
+        #  SVM LINEARE 
         start = time.time()
         svm_lin = SVC(kernel='linear', C=1, probability=True)
         svm_lin.fit(X_train, y_train)
@@ -279,7 +325,7 @@ class FaceRecognizer:
         results['SVM Linear'] = {'accuracy': lin_acc, 'time': lin_time, 'y_pred': y_pred_lin}
         print(f"SVM Linear Accuracy: {lin_acc * 100:.2f}%, Time: {lin_time:.4f}s")
 
-        # ===================== SVM RBF =====================
+        #  SVM RBF 
         start = time.time()
         svm_rbf = SVC(kernel='rbf', C=10, gamma='scale', probability=True)
         svm_rbf.fit(X_train, y_train)

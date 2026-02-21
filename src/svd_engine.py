@@ -6,28 +6,41 @@ from sklearn.decomposition import TruncatedSVD
 class SVDReducerEngine:
     """
     Classe responsabile di:
-    - Calcolo SVD completa (analisi energia)
-    - Selezione numero componenti ottimale
+    - Calcolo della SVD completa (analisi spettro dei valori singolari)
+    - Stima dell'energia cumulativa
+    - Selezione automatica del numero ottimale di componenti
     - Riduzione dimensionale con TruncatedSVD
+    - Proiezione e ricostruzione nello spazio originale
     """
     def __init__(self, energy_threshold=0.95, random_state=42):
-        # Percentuale di energia da mantenere
+        """
+        :param energy_threshold: frazione di varianza totale da preservare (es. 0.95 = 95%)
+        :param random_state: per riproducibilità della TruncatedSVD
+        """
         self.energy_threshold = energy_threshold
         self.random_state = random_state
 
+        # Matrici della SVD completa
         self.U = None
         self.S = None
         self.VT = None
 
+        # Energia cumulativa associata ai valori singolari
         self.energy = None
+
+        # Numero di componenti selezionate
         self.components = None
+
+        # Modello TruncatedSVD per riduzione pratica
         self.svd_model = None
 
     def compute_full_svd(self, X_centred):
         """
         Calcola la SVD completa: X = U SIGMA V^T
 
-        I valori singolari (S) permettono di stimare quanta informazione (energia) contiene ogni componente.
+        I valori singolari (S) rappresentano l'importanza di ciascuna direzione principale nello spazio delle feature.
+
+        L'energia cumulativa permette di quantificare quanta varianza del dataset è spiegata dalle prime k componenti.
         """
         self.U, self.S, self.VT = svd(X_centred, full_matrices=False)
         self.energy = np.cumsum(self.S**2) / np.sum(self.S**2)
@@ -42,7 +55,17 @@ class SVDReducerEngine:
         return self.components
 
     def fit_transform(self, X_centered):
-        """ Applica Truncated SVD per ridurre dimensionalità. Restituisce la proiezione dei dati nello spazio ridotto."""
+        """
+        Applica TruncatedSVD per ridurre la dimensionalità dei dati.
+
+        A differenza della SVD completa (usata per analisi energetica),
+        TruncatedSVD calcola direttamente le prime 'k' componenti rendendo il processo computazionalmente più efficiente.
+
+        Returns:
+        - Proiezione dei dati nello spazio ridotto (n_samples, n_components)
+        """
+        if self.components is None:
+            raise ValueError("Devi prima chiamare select_components().")
         self.svd_model = TruncatedSVD(
             n_components=self.components,
             random_state=self.random_state
@@ -51,16 +74,31 @@ class SVDReducerEngine:
 
     def transform(self, X):
         """
-        Proietta nuovi dati (es. volto sconosciuto) nello spazio ridotto già appreso.
+        Proietta nuovi campioni (es. volto di test o sconosciuto)
+        nello spazio latente già appreso.
+
+        Utilizza le componenti calcolate durante fit_transform().
         """
+        if self.svd_model is None:
+            raise ValueError("Il modello SVD non è stato ancora addestrato.")
         return self.svd_model.transform(X)
 
     def reconstruct_face(self, X_reduced, mean_face):
         """
-        Ricostruisce i volti originali a partire dalle componenti ridotte.
-        :param X_reduced: Dati ridotti nello spazio TruncatedSVD (n_samples, n_components)
-        :param mean_face: Volto medio del dataset (shape: n_features)
-        :return: Volti ricostruiti nello spazio originale (n_samples, n_features)
+        Ricostruisce i volti nello spazio originale delle feature.
+
+        Procedura:
+        1. Proiezione inversa tramite moltiplicazione per le componenti principali
+        2. Ri-aggiunta del volto medio
+
+        X_original ≈ Z @ V_k + mean_face
+
+        Parameters:
+        - X_reduced: rappresentazione nello spazio ridotto (n_samples, k)
+        - mean_face: volto medio usato per la centratura
+
+        Returns:
+        - Volti ricostruiti nello spazio originale (n_samples, n_features)
         """
         if self.svd_model is None:
             raise ValueError("Devi prima fit_transform() per calcolare lo spazio ridotto.")

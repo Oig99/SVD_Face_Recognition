@@ -1,5 +1,6 @@
 import time
 import numpy as np
+from PIL import Image
 from sklearn.metrics import classification_report, accuracy_score
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV
@@ -15,7 +16,11 @@ warnings.filterwarnings('ignore')
 
 
 def main():
-    viz = Visualizer(path=r"result/lfw")
+    """
+    Script principale per Face Recognition con SVD utilizzando il dataset Labeled Faces in the Wild
+    Include tutte le visualizzazioni e analisi presenti nel notebook.
+    """
+    viz = Visualizer(path=r"/result/lfw")
 
     # === CARICAMENTO DATASET ===
     dataset = DataLoader()
@@ -224,6 +229,79 @@ def main():
           f"Media: {np.mean(distances_test):.4f}, Std: {np.std(distances_test):.4f}")
 
     viz.plot_distance_distribution(distances_test, recognizer.unknown_threshold)
+
+    # === TEST VOLTO SCONOSCIUTO ===
+    is_image = True
+    # Prende un' immagine di esempio se settato a True altrimenti prende il rumore
+    if is_image:
+        # Carica immagine
+        img = Image.open(r"image_example.jpg").convert('L')  # converti in grayscale
+
+        # Ridimensiona alla stessa dimensione del dataset Olivetti (64x64). Ottieni dimensioni reali dataset
+        h, w = dataset.X.shape[1], dataset.X.shape[2]
+
+        img = img.resize((w, h))  # attenzione: PIL usa (width, height)
+
+        # Converti in array numpy e flatten
+        unknown_face = np.array(img).flatten().astype(float)
+
+        # Normalizza se necessario (Olivetti ha valori 0-1)
+        unknown_face /= 255.0
+
+        # Aggiungi dimensione batch
+        unknown_face = unknown_face.reshape(1, -1)
+        face_centered = unknown_face - dataset.mean_face
+        svd_reducer.transform(face_centered)
+    else:
+        np.random.seed(0)
+        unknown_face = np.random.rand(1, dataset.X_flat.shape[1])
+
+    print(f"Shape: {unknown_face.shape}")
+
+    label, distance = recognizer.detect_unknown(
+        unknown_face,
+        dataset.mean_face,
+        svd_reducer,
+        X_train
+    )
+
+    print(f"\nDistanza minima trovata: {distance:.3f}")
+    print(f"Soglia impostata: {recognizer.unknown_threshold}")
+
+    if label == "UNKNOWN":
+        print("Volto NON riconosciuto (sconosciuto)")
+    else:
+        print(f"Volto riconosciuto come ID: {label}")
+
+    viz.plot_new_faces(
+        unknown_face=unknown_face,  # array flatten 1x4096
+        X=dataset.X,  # immagini originali shape (n_samples, h, w)
+        distance=distance,  # distanza calcolata
+        label=label,  # 'UNKNOWN' o ID predetto
+        th=recognizer.unknown_threshold  # soglia utilizzata
+    )
+
+    # Aggiorna soglia unknown
+    recognizer.optimize_unknown_threshold(X_train, X_test)
+
+    # Test volto sconosciuto con nuova soglia
+    label, distance = recognizer.detect_unknown(
+        unknown_face,
+        dataset.mean_face,
+        svd_reducer,
+        X_train
+    )
+    print(f"\nVolto sconosciuto test: {label}, distanza={distance:.3f}")
+
+    # === RIEPILOGO FINALE ===
+
+    accuracy = np.mean(y_pred_svm_lin == y_test)
+
+    print(f"Accuracy complessiva: {accuracy * 100:.2f}%")
+    print(f"Componenti mantenute: {n_components}")
+    print(f"Energia preservata: {energy[n_components - 1] * 100:.2f}%")
+    print(f"Riduzione dimensionale: {dataset.X_flat.shape[1]}; {n_components}")
+    print(f"Test volto sconosciuto: {'RIFIUTATO' if label == 'UNKNOWN' else 'ACCETTATO'}")
 
     print("\n" + "=" * 80)
     print("  ANALISI COMPLETATA")

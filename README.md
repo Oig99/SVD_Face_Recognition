@@ -107,23 +107,25 @@ dove $\mu_d$ e $\sigma_d$ sono media e deviazione standard delle distanze sul va
 ## Struttura del Progetto
 
 ```
-face-recognition-svd/
+SVD_Face_Recognition/
 │
 ├── src/
-│   ├── data_loader.py       # Caricamento Olivetti e LFW, centratura, split
-│   ├── svd_engine.py        # SVD completa, selezione componenti, TruncatedSVD
-│   ├── recognizer.py        # KNN, SVM, cross-validation, unknown detection
-│   └── visualizer.py        # Tutte le visualizzazioni e salvataggio Excel
+│   ├── notebook/
+│   │   └── face_recognition_project.ipynb  # Notebook con confronto integrato
+│   │
+│   ├── result/
+│   │   ├── lfw/                            # Output grafici e report dataset LFW
+│   │   └── olivetti/                       # Output grafici e report dataset Olivetti
+│   │
+│   ├── data_loader.py                      # Caricamento Olivetti e LFW, centratura, split
+│   ├── image_example.jpg                   # Immagine di esempio per i test
+│   ├── pipeline_lfw.py                     # Pipeline completa per LFW (script standalone)
+│   ├── pipeline_oliv.py                    # Pipeline completa per Olivetti (script standalone)
+│   ├── recognizer.py                       # KNN, SVM, cross-validation, unknown detection
+│   ├── svd_engine.py                       # SVD completa, selezione componenti, TruncatedSVD
+│   └── visualizer.py                       # Tutte le visualizzazioni e salvataggio Excel
 │
-├── result/
-│   ├── olivetti/            # Output grafici e report dataset Olivetti
-│   └── lfw/                 # Output grafici e report dataset LFW
-│
-├── pipeline_oliv.py         # Pipeline completa per Olivetti (script standalone)
-├── pipeline_lfw.py          # Pipeline completa per LFW (script standalone)
-├── face_recognition_project.ipynb  # Notebook con confronto integrato
-│
-└── README.md
+└── README.md                               # Documentazione del progetto
 ```
 
 ### Moduli principali

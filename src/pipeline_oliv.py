@@ -15,16 +15,14 @@ warnings.filterwarnings('ignore')
 
 def main():
     """
-    Script principale per Face Recognition con SVD.
+    Script principale per Face Recognition con SVD utilizzando il dataset olivetti
     Include tutte le visualizzazioni e analisi presenti nel notebook.
     """
-
     viz = Visualizer(path=r"result/olivetti")
 
     # === CARICAMENTO DATASET ===
     dataset = DataLoader()
     dataset.X, dataset.X_flat, dataset.y = dataset.load_olivetti_data()
-    # dataset.X, dataset.X_flat, dataset.y = dataset.load_lfw_data()
 
     print(f"Shape immagini: {dataset.X.shape}")
     print(f"Shape flatten: {dataset.X_flat.shape}")
@@ -58,9 +56,8 @@ def main():
 
     # Visualizza eigenfaces
     viz.plot_eigenfaces(VT, n_components=10)
-    # viz.plot_eigenfaces_lfw(VT, dataset.X, n_components=10)
-    # === SELEZIONE COMPONENTI ===
 
+    # === SELEZIONE COMPONENTI ===
     n_components = svd_reducer.select_components()
     print(f"Energia richiesta: {svd_reducer.energy_threshold * 100}%")
     print(f"Componenti selezionate: {n_components}")
@@ -91,11 +88,8 @@ def main():
     X_reconstructed = svd_reducer.reconstruct_face(X_reduced, dataset.mean_face)
 
     # Visualizza il primo volto originale e ricostruito
-    # viz.plot_original_vs_reconstructed(dataset.X_flat, X_reconstructed, dataset.y)
-    viz.plot_original_vs_reconstructed_lfw(dataset.X_flat,
-    X_reconstructed,
-    dataset.y,
-    dataset.X)
+    viz.plot_original_vs_reconstructed(dataset.X_flat, X_reconstructed, dataset.y)
+    # viz.plot_original_vs_reconstructed_lfw(dataset.X_flat, X_reconstructed, dataset.y, dataset.X)
 
     # Visualizza proiezione 2D
     viz.plot_2d_projection(X_reduced, dataset.y)
@@ -241,8 +235,6 @@ def main():
 
     viz.plot_reconstruction_error(mse_per_sample)
 
-    # print(f"Miglior accuracy in cross-validation: {best_score:.4f}")
-
     # === PREDIZIONI CON CONFIDENCE ===
     results_with_confidence = recognizer.predict_with_confidence(X_test)
 
@@ -302,32 +294,33 @@ def main():
     print(f"  Std: {np.std(distances_test):.4f}")
 
     # Visualizza distribuzione distanze
-    viz.plot_distance_distribution(distances_test,
-                                   recognizer.unknown_threshold)
+    viz.plot_distance_distribution(distances_test, recognizer.unknown_threshold)
 
     # === TEST VOLTO SCONOSCIUTO ===
-    # Carica immagine
-    img = Image.open(r"11.jpg").convert('L')  # converti in grayscale
+    is_image = True
+    # Prende un' immagine di esempio se settato a True altrimenti prende il rumore
+    if is_image:
+        # Carica immagine
+        img = Image.open(r"image_example.jpg").convert('L')  # converti in grayscale
 
-    # Ridimensiona alla stessa dimensione del dataset Olivetti (64x64)
-    # Ottieni dimensioni reali dataset
-    h, w = dataset.X.shape[1], dataset.X.shape[2]
+        # Ridimensiona alla stessa dimensione del dataset Olivetti (64x64). Ottieni dimensioni reali dataset
+        h, w = dataset.X.shape[1], dataset.X.shape[2]
 
-    img = img.resize((w, h))  # attenzione: PIL usa (width, height)
+        img = img.resize((w, h))  # attenzione: PIL usa (width, height)
 
-    # Converti in array numpy e flatten
-    unknown_face = np.array(img).flatten().astype(float)
+        # Converti in array numpy e flatten
+        unknown_face = np.array(img).flatten().astype(float)
 
-    # Normalizza se necessario (Olivetti ha valori 0-1)
-    unknown_face /= 255.0
+        # Normalizza se necessario (Olivetti ha valori 0-1)
+        unknown_face /= 255.0
 
-    # Aggiungi dimensione batch
-    unknown_face = unknown_face.reshape(1, -1)
-    face_centered = unknown_face - dataset.mean_face
-    svd_reducer.transform(face_centered)
-
-    # np.random.seed(0)
-    # unknown_face = np.random.rand(1, dataset.X_flat.shape[1])
+        # Aggiungi dimensione batch
+        unknown_face = unknown_face.reshape(1, -1)
+        face_centered = unknown_face - dataset.mean_face
+        svd_reducer.transform(face_centered)
+    else:
+        np.random.seed(0)
+        unknown_face = np.random.rand(1, dataset.X_flat.shape[1])
 
     print(f"Shape: {unknown_face.shape}")
 
