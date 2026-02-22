@@ -21,9 +21,14 @@ class Visualizer:
         if not os.path.exists(self.path):
             os.makedirs(self.path)
 
+    # ---------------------------- Visualizzazione dati grezzi ----------------------------
+
     def plot_sample_faces(self, X, y, n_samples=10):
         """
         Visualizza campioni di volti dal dataset.
+        Utile per:
+        - Osservare variabilità intra-classe
+        - confrontare condizioni controllate
         """
         fig, axes = plt.subplots(1, n_samples, figsize=(15, 2))
         for i, ax in enumerate(axes):
@@ -32,7 +37,7 @@ class Visualizer:
             ax.set_title(f"ID: {y[i]}")
         plt.suptitle("Esempi di volti")
         plt.tight_layout()
-        filepath = os.path.join(self.path, 'sample_faces_lfw.png')
+        filepath = os.path.join(self.path, 'sample_faces.png')
         plt.savefig(filepath)
         plt.show()
         
@@ -40,6 +45,9 @@ class Visualizer:
     def plot_mean_face(self, mean_face, shape=(64, 64)):
         """
         Visualizza il volto medio del dataset.
+
+        Il mean face rappresenta il centro geometrico nello spazio delle feature.
+        Tutte le analisi SVD sono effettuate rispetto a questo punto.
         """
         plt.figure(figsize=(4, 4))
         plt.imshow(mean_face.reshape(shape), cmap='gray')
@@ -51,7 +59,7 @@ class Visualizer:
 
     def plot_mean_face_lfw(self, mean_face, X):
         """
-        Visualizza il volto medio del dataset. (è una versione con le dimensioni reali)
+        Versione generica del mean face che usa le dimensioni reali del dataset.
         """
         plt.figure(figsize=(4, 4))
         h, w = X.shape[1], X.shape[2]  # dimensioni reali dataset
@@ -62,10 +70,14 @@ class Visualizer:
         plt.savefig(filepath)
         plt.show()
 
+    # ---------------------------- Eigenfaces e analisi spettrale ----------------------------
     
     def plot_eigenfaces(self, VT, n_components=10, shape=(64, 64)):
         """
         Visualizza le prime eigenfaces (componenti principali).
+
+        Ogni eigenface rappresenta una direzione di massima varianza.
+        L'ordine riflette l'importanza (valore singolare associato).
         """
         fig, axes = plt.subplots(2, 5, figsize=(15, 6))
         axes = axes.ravel()
@@ -105,7 +117,12 @@ class Visualizer:
     
     def plot_cumulative_energy(self, energy):
         """
-        Visualizza l'energia cumulativa rispetto al numero di componenti.
+        Mostra l'energia cumulativa spiegata dalle componenti SVD.
+
+        Permette di:
+        - valutare il decadimento dello spettro
+        - stimare il rango effettivo del dataset
+        - selezionare k tale che E_k ≥ soglia (es. 95%)
         """
         plt.figure(figsize=(10, 5))
         plt.plot(energy, linewidth=2)
@@ -120,10 +137,16 @@ class Visualizer:
         plt.savefig(filepath)
         plt.show()
 
-    
+    # ---------------------------- Geometria nello spazio ridotto ----------------------------
+
     def plot_2d_projection(self, X_reduced, y, title="Proiezione 2D delle prime componenti"):
         """
-        Visualizza la proiezione 2D dei dati ridotti (prime 2 componenti).
+        Proiezione dei campioni sulle prime due componenti principali.
+
+        Utile per osservare:
+        - separabilità tra classi
+        - eventuale sovrapposizione
+        - struttura clusterizzata del dataset
         """
         plt.figure(figsize=(12, 8))
         scatter = plt.scatter(X_reduced[:, 0], X_reduced[:, 1],
@@ -138,10 +161,15 @@ class Visualizer:
         plt.savefig(filepath)
         plt.show()
 
+    # ---------------------------- Analisi classificazione ----------------------------
     
     def plot_confusion_matrix(self, y_test, y_pred):
         """
-        Visualizza la matrice di confusione.
+        Matrice di confusione.
+
+        Permette di identificare:
+        - classi più frequentemente confuse
+        - pattern sistematici di errore
         """
         cm = confusion_matrix(y_test, y_pred)
         disp = ConfusionMatrixDisplay(confusion_matrix=cm)
@@ -159,6 +187,8 @@ class Visualizer:
         """
         Visualizza la distribuzione delle distanze minime per train e test set.
         Utile per analizzare la soglia di riconoscimento volti sconosciuti.
+        Fondamentale per la open-set recognition:
+        la soglia separa la regione delle classi note da punti potenzialmente esterni alla distribuzione.
         """
         plt.figure(figsize=(12, 5))
 
@@ -175,16 +205,21 @@ class Visualizer:
         plt.savefig(filepath)
         plt.show()
 
+    # ---------------------------- Ricostruzione ----------------------------
+
     def plot_original_vs_reconstructed(self, X_original, X_reconstructed, y_true, num_samples=5, shape=(64, 64)):
         """
         Visualizza affiancati il volto originale e quello ricostruito.
-        """
-        num_samples = min(num_samples, len(X_original))  # sicurezza
 
+        Permette di valutare qualitativamente:
+        - perdita di informazione
+        - capacità compressiva della SVD
+        """
+        num_samples = min(num_samples, len(X_original))
         fig, axes = plt.subplots(2, num_samples, figsize=(num_samples * 2.5, 5))
 
         for i in range(num_samples):
-            # --- Volti originali ---
+            # Volti originali
             axes[0, i].imshow(X_original[i].reshape(shape), cmap='gray')
             title_orig = f"ID: {y_true[i]}" if y_true is not None else "Originale"
             axes[0, i].set_title(title_orig, fontsize=10)
@@ -192,15 +227,13 @@ class Visualizer:
             if i == 0:
                 axes[0, i].set_ylabel("ORIGINALI", fontsize=12, fontweight='bold')
 
-            # --- Volti ricostruiti ---
+            # Volti ricostruiti
             axes[1, i].imshow(X_reconstructed[i].reshape(shape), cmap='gray')
             axes[1, i].set_title("Ricostruita", fontsize=10)
             axes[1, i].axis('off')
             if i == 0:
                 axes[1, i].set_ylabel("RICOSTRUITI", fontsize=12, fontweight='bold')
 
-
-        # Titolo generale
         plt.suptitle("Confronto Originali vs Ricostruiti", fontsize=16, fontweight='bold')
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.savefig(os.path.join(self.path, 'all_reconstructions.png'), bbox_inches='tight')
@@ -208,8 +241,7 @@ class Visualizer:
 
     def plot_original_vs_reconstructed_lfw(self, X_original, X_reconstructed, y_true, X, num_samples=5):
         """
-        Mostra affiancati il volto originale e quello ricostruito.
-        Funziona con qualsiasi dataset (Olivetti, LFW, ecc.).
+        Mostra affiancati il volto originale e quello ricostruito (Adattamento dataset realistici)
         """
         h, w = X.shape[1], X.shape[2]
         num_samples = min(num_samples, len(X_original))
@@ -217,7 +249,7 @@ class Visualizer:
         fig, axes = plt.subplots(2, num_samples, figsize=(num_samples * 2.5, 5))
 
         for i in range(num_samples):
-            # --- ORIGINALI ---
+            # --- Volti originali ---
             axes[0, i].imshow(X_original[i].reshape(h, w), cmap='gray')
             title_orig = f"ID: {y_true[i]}" if y_true is not None else "Originale"
             axes[0, i].set_title(title_orig, fontsize=10)
@@ -225,7 +257,7 @@ class Visualizer:
             if i == 0:
                 axes[0, i].set_ylabel("ORIGINALI", fontsize=12, fontweight='bold')
 
-            # --- RICOSTRUITI ---
+            # --- Volti ricostruiti ---
             axes[1, i].imshow(X_reconstructed[i].reshape(h, w), cmap='gray')
             axes[1, i].set_title("Ricostruita", fontsize=10)
             axes[1, i].axis('off')
@@ -237,24 +269,20 @@ class Visualizer:
         plt.savefig(os.path.join(self.path, 'all_reconstructions.png'), bbox_inches='tight')
         plt.show()
 
-
-    def save_excel(self, df, filename):
-        """Salva excel"""
-        df = pd.DataFrame(df).transpose()
-        df.to_excel(os.path.join(self.path, filename))
+    # ----------------------------  Unknown detection ----------------------------
 
     def plot_new_faces(self, unknown_face, X, distance, label, th):
         """
-        Visualizza la ricostruzione di un volto esterno (o sintetico).
-        Unknown detection
+        Visualizza un volto test e il risultato della open-set decision.
+
+        Nota:
+        La soglia deve essere mostrata nel suo valore reale, altrimenti si altera il significato geometrico.
         """
-        # Plot
         plt.figure(figsize=(4, 4))
 
         # Volto simulato
         plt.imshow(unknown_face.reshape(X.shape[1], X.shape[2]), cmap='gray')
         plt.axis("off")
-        th = th/100
 
         plt.suptitle(
             f"Min dist: {distance:.3f} | Threshold: {th}\n"
@@ -265,10 +293,14 @@ class Visualizer:
         plt.savefig(os.path.join(self.path, 'simulation_face.png'), bbox_inches='tight')
         plt.show()
 
+    # ----------------------------  Errore di ricostruzione ----------------------------
+
     def plot_reconstruction_error(self, mse_per_sample):
         """
-        Visualizza l'errore di ricostruzione per ogni campione.
-        Gestisce casi in cui tutti i valori siano uguali.
+        Visualizza l'errore di ricostruzione per ogni campione. Gestisce casi in cui tutti i valori siano uguali.
+        Utile per:
+        - valutare qualità media della compressione
+        - individuare campioni anomali
         """
         std_mse = np.std(mse_per_sample)
         print(f"Deviazione standard MSE: {std_mse:.6e}")
@@ -292,4 +324,11 @@ class Visualizer:
         plt.savefig(filepath)
         plt.show()
         plt.close()
+
+    # ----------------------------  utils ----------------------------
+
+    def save_excel(self, df, filename):
+        """Salva excel"""
+        df = pd.DataFrame(df).transpose()
+        df.to_excel(os.path.join(self.path, filename))
 

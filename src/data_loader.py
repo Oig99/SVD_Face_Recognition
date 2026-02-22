@@ -46,6 +46,28 @@ class DataLoader:
         self.X_flat = self.X.reshape((self.X.shape[0], -1))
         return self.X, self.X_flat, self.y
 
+    def load_lfw_data(self):
+        """
+        Carica il dataset LFW.
+        Restituisce:
+        - X: immagini originali
+        - X_flat: immagini vettorializzate
+        - y: etichette
+        """
+        lfw = fetch_lfw_people(
+            min_faces_per_person=self.min_faces_per_person,
+            resize=self.resize,
+            color=False
+        )
+
+        self.X = lfw.images
+        self.y = lfw.target
+
+        # flatten
+        self.X_flat = self.X.reshape((self.X.shape[0], -1))
+
+        return self.X, self.X_flat, self.y
+
     def center_data(self):
         """
         Esegue la centratura dei dati: X_centered = X - media
@@ -70,21 +92,3 @@ class DataLoader:
             random_state=self.random_state
         )
         return self.X_train, self.X_test, self.y_train, self.y_test
-
-    def load_lfw_data(self):
-        lfw = fetch_lfw_people(
-            min_faces_per_person=self.min_faces_per_person,
-            resize=self.resize,
-            color=False  # grayscale per coerenza con Olivetti
-        )
-
-        self.X = lfw.images
-        self.y = lfw.target
-
-        # flatten
-        self.X_flat = self.X.reshape((self.X.shape[0], -1))
-
-        return self.X, self.X_flat, self.y
-
-
-

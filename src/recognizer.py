@@ -25,6 +25,7 @@ class FaceRecognizer:
         self.singular_values = singular_values
 
     # ---------------------------- KNN ----------------------------
+
     def train_knn(self, X_train, y_train):
         """
         Addestra il KNN nello spazio SVD.

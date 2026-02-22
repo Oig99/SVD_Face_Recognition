@@ -233,7 +233,7 @@ def main():
     # === TEST VOLTO SCONOSCIUTO ===
     is_image = True
     # Prende un' immagine di esempio se settato a True altrimenti prende il rumore
-    if is_image:
+    try:
         # Carica immagine
         img = Image.open(r"image_example.jpg").convert('L')  # converti in grayscale
 
@@ -252,7 +252,7 @@ def main():
         unknown_face = unknown_face.reshape(1, -1)
         face_centered = unknown_face - dataset.mean_face
         svd_reducer.transform(face_centered)
-    else:
+    except:
         np.random.seed(0)
         unknown_face = np.random.rand(1, dataset.X_flat.shape[1])
 
