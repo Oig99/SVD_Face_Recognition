@@ -1,8 +1,11 @@
+import math
 import os.path
+from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from PIL import Image
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
 
 
 class Visualizer:
@@ -39,7 +42,7 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'sample_faces.png')
         plt.savefig(filepath)
-        plt.show()
+        
         
         
     def plot_mean_face(self, mean_face, shape=(64, 64)):
@@ -55,7 +58,7 @@ class Visualizer:
         plt.axis('off')
         filepath = os.path.join(self.path, 'mean_faces.png')
         plt.savefig(filepath)
-        plt.show()
+        
 
     def plot_mean_face_lfw(self, mean_face, X):
         """
@@ -68,7 +71,7 @@ class Visualizer:
         plt.axis('off')
         filepath = os.path.join(self.path, 'mean_faces.png')
         plt.savefig(filepath)
-        plt.show()
+        
 
     # ---------------------------- Eigenfaces e analisi spettrale ----------------------------
     
@@ -91,7 +94,7 @@ class Visualizer:
         plt.suptitle("Prime 10 Eigenfaces")
         filepath = os.path.join(self.path, 'eigenfaces.png')
         plt.savefig(filepath)
-        plt.show()
+        
 
     def plot_eigenfaces_lfw(self, VT, X, n_components=10):
         """
@@ -112,7 +115,7 @@ class Visualizer:
         plt.suptitle("Prime 10 Eigenfaces")
         filepath = os.path.join(self.path, 'eigenfaces.png')
         plt.savefig(filepath)
-        plt.show()
+        
 
     
     def plot_cumulative_energy(self, energy):
@@ -135,7 +138,7 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'cumulative_energy.png')
         plt.savefig(filepath)
-        plt.show()
+        
 
     # ---------------------------- Geometria nello spazio ridotto ----------------------------
 
@@ -159,7 +162,7 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'projection.png')
         plt.savefig(filepath)
-        plt.show()
+        
 
     # ---------------------------- Analisi classificazione ----------------------------
     
@@ -180,7 +183,7 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'confusion_matrix.png')
         plt.savefig(filepath)
-        plt.show()
+        
 
     
     def plot_distance_distribution(self, distances_test, threshold):
@@ -203,7 +206,7 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'distance_distribution.png')
         plt.savefig(filepath)
-        plt.show()
+        
 
     # ---------------------------- Ricostruzione ----------------------------
 
@@ -237,7 +240,7 @@ class Visualizer:
         plt.suptitle("Confronto Originali vs Ricostruiti", fontsize=16, fontweight='bold')
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.savefig(os.path.join(self.path, 'all_reconstructions.png'), bbox_inches='tight')
-        plt.show()
+        
 
     def plot_original_vs_reconstructed_lfw(self, X_original, X_reconstructed, y_true, X, num_samples=5):
         """
@@ -267,11 +270,11 @@ class Visualizer:
         plt.suptitle("Confronto Originali vs Ricostruiti", fontsize=16, fontweight='bold')
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.savefig(os.path.join(self.path, 'all_reconstructions.png'), bbox_inches='tight')
-        plt.show()
+        
 
     # ----------------------------  Unknown detection ----------------------------
 
-    def plot_new_faces(self, unknown_face, X, distance, label, th):
+    def plot_new_faces(self, unknown_face, X, distance, label, th, filepath='simulation_face.png'):
         """
         Visualizza un volto test e il risultato della open-set decision.
 
@@ -290,9 +293,8 @@ class Visualizer:
         )
 
         plt.tight_layout()
-        plt.savefig(os.path.join(self.path, 'simulation_face.png'), bbox_inches='tight')
-        plt.show()
-
+        plt.savefig(os.path.join(self.path, filepath), bbox_inches='tight')
+        plt.close()
     # ----------------------------  Errore di ricostruzione ----------------------------
 
     def plot_reconstruction_error(self, mse_per_sample):
@@ -322,7 +324,7 @@ class Visualizer:
 
         filepath = os.path.join(self.path, 'reconstruction_error.png')
         plt.savefig(filepath)
-        plt.show()
+        
         plt.close()
 
     # ----------------------------  utils ----------------------------
@@ -332,3 +334,58 @@ class Visualizer:
         df = pd.DataFrame(df).transpose()
         df.to_excel(os.path.join(self.path, filename))
 
+    @staticmethod
+    def classifier(y_test, y_pred, output_dict):
+        """Genera il classification report."""
+        print(classification_report(y_test, y_pred))
+        report = classification_report(y_test, y_pred, output_dict=output_dict)
+        return report
+
+    def plot_images_from_directory(self, directory_path, n_cols=5, filename='image_grid.png'):
+        """
+        Legge le immagini da una cartella e le visualizza in una griglia con n_cols per riga.
+        Gestisce dinamicamente il numero di righe e nasconde i riquadri vuoti.
+        """
+        valid_ext = {".jpg", ".jpeg", ".png"}
+        p = Path(directory_path)
+
+        # Raccogli e ordina alfabeticamente tutte le immagini valide
+        image_files = sorted([x for x in p.iterdir() if x.is_file() and x.suffix.lower() in valid_ext])
+        n_images = len(image_files)
+
+        if n_images == 0:
+            print(f"Nessuna immagine trovata nella cartella: {directory_path}")
+            return
+
+        # Calcola quante righe servono
+        n_rows = math.ceil(n_images / n_cols)
+
+        # Crea la griglia (adatta l'altezza in base al numero di righe)
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 3, n_rows * 3))
+
+        # Appiattisci l'array degli assi per poterci iterare facilmente
+        # (Gestisce il caso in cui ci sia 1 sola riga o 1 sola immagine)
+        if n_rows == 1 and n_cols == 1:
+            axes = [axes]
+        else:
+            axes = np.array(axes).flatten()
+
+        # Plotta ogni immagine
+        for i, img_path in enumerate(image_files):
+            try:
+                img = Image.open(img_path).convert('L')  # Converte in grigiolo per coerenza
+                axes[i].imshow(img, cmap='gray')
+                axes[i].set_title(img_path.name, fontsize=10)
+                axes[i].axis('off')
+            except Exception as e:
+                print(f"Errore caricamento {img_path.name}: {e}")
+                axes[i].axis('off')
+
+        # Nascondi gli assi dei riquadri avanzati/vuoti
+        for j in range(n_images, len(axes)):
+            axes[j].axis('off')
+
+        plt.tight_layout()
+        filepath = os.path.join(self.path, filename)
+        plt.savefig(filepath)
+        plt.close()

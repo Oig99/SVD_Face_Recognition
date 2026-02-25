@@ -1,10 +1,7 @@
-import time
+from pathlib import Path
+
 import numpy as np
 from PIL import Image
-from sklearn.metrics import classification_report, accuracy_score
-from sklearn.svm import SVC
-from sklearn.model_selection import GridSearchCV
-
 from src.data_loader import DataLoader
 from src.svd_engine import SVDReducerEngine
 from src.recognizer import FaceRecognizer
@@ -20,11 +17,29 @@ def main():
     Script principale per Face Recognition con SVD utilizzando il dataset Labeled Faces in the Wild
     Include tutte le visualizzazioni e analisi presenti nel notebook.
     """
-    viz = Visualizer(path=r"/result/lfw")
+    viz = Visualizer(path=r"result/lfw")
+    recognizer = FaceRecognizer(n_neighbors=1, unknown_threshold=0.5)
+    dataset = DataLoader()
+    svd_reducer = SVDReducerEngine(energy_threshold=0.95)
 
     # === CARICAMENTO DATASET ===
-    dataset = DataLoader()
     dataset.X, dataset.X_flat, dataset.y = dataset.load_lfw_data()
+
+    # Dataset originale (prima SVD)
+    X_train_raw, X_test_raw, y_train_raw, y_test_raw = dataset.dataset_splitting(
+        dataset.X_flat
+    )
+
+    results_raw, knn_rep_raw, lin_rep_raw, rbf_rep_raw = recognizer.compare_classifiers(
+        X_train_raw,
+        y_train_raw,
+        X_test_raw,
+        y_test_raw
+    )
+    viz.save_excel(results_raw, "comparison_no_svd.xlsx")
+    viz.save_excel(knn_rep_raw, "knn_no_svd.xlsx")
+    viz.save_excel(lin_rep_raw, "lin_no_svd.xlsx")
+    viz.save_excel(rbf_rep_raw, "rbf_no_svd.xlsx")
 
     print(f"Shape immagini: {dataset.X.shape}")
     print(f"Shape flatten: {dataset.X_flat.shape}")
@@ -38,14 +53,12 @@ def main():
     print(f"Shape dati centrati: {dataset.X_centered.shape}")
     print(f"Media dei dati centrati: {np.mean(dataset.X_centered):.10f}")
 
-
     varianza_totale = np.var(dataset.X_centered, axis=0).sum()
     print(f"\nVarianza totale dei dati centrati: {varianza_totale:.6f}")
 
     viz.plot_mean_face_lfw(dataset.mean_face, dataset.X)
 
     # === SVD COMPLETA ===
-    svd_reducer = SVDReducerEngine(energy_threshold=0.95)
     U, S, VT, energy = svd_reducer.compute_full_svd(dataset.X_centered)
 
     print(f"Shape U: {U.shape}")
@@ -92,122 +105,43 @@ def main():
     print(f"Test set: {X_test.shape}")
     print(f"Split ratio: {dataset.test_size * 100:.0f}% test")
 
-    print("\nOttimizzazione iperparametri KNN in corso...")
+    print("\nOttimizzazione iperparametri in corso...")
+
+    best_params, best_score = recognizer.optimize_hyperparameters(X_train, y_train)
+    print("\nKNN; best_params:", best_params, "best_score:", best_score)
+
+    best_params, best_score, support_total, support_per_classes = recognizer.optimize_svm(X_train, y_train)
+    print("\nSVM; best_params:", best_params, "best_score:", best_score)
+    print("Support vectors per classe:", support_total)
+    print("Totale support vectors:", support_per_classes)
 
     # === ANALISI ERRORE DI RICOSTRUZIONE ===
     mse_per_sample = np.mean((dataset.X_flat - X_reconstructed) ** 2, axis=1)
     mean_mse = np.mean(mse_per_sample)
     std_mse = np.std(mse_per_sample)
 
-    print("\n" + "=" * 60)
-    print("CONFRONTO KNN vs SVM")
-    print("=" * 60)
-
-    # =====================================================
-    # KNN
-    # =====================================================
-    start = time.time()
-    recognizer = FaceRecognizer(n_neighbors=1, unknown_threshold=0.5)
-    recognizer.train_knn(X_train, y_train)
-    y_pred_knn = recognizer.evaluate_knn(X_test, y_test)
-    knn_time = time.time() - start
-    knn_acc = accuracy_score(y_test, y_pred_knn)
-
-    print(f"\nKNN Accuracy: {knn_acc * 100:.2f}%")
-    print(f"KNN Tempo training+predict: {knn_time:.4f}s")
-
-    # =====================================================
-    # SVM LINEARE
-    # =====================================================
-    start = time.time()
-    svm_linear = SVC(kernel='linear', C=1)
-    svm_linear.fit(X_train, y_train)
-    y_pred_svm_lin = svm_linear.predict(X_test)
-    lin_time = time.time() - start
-    lin_acc = accuracy_score(y_test, y_pred_svm_lin)
-
-    print(f"\nSVM Lineare Accuracy: {lin_acc * 100:.2f}%")
-    print(f"SVM Lineare Tempo: {lin_time:.4f}s")
-
-    # =====================================================
-    # SVM RBF
-    # =====================================================
-    start = time.time()
-    svm_rbf = SVC(kernel='rbf', C=10, gamma='scale')
-    svm_rbf.fit(X_train, y_train)
-    y_pred_svm_rbf = svm_rbf.predict(X_test)
-    rbf_time = time.time() - start
-    rbf_acc = accuracy_score(y_test, y_pred_svm_rbf)
-
-    print(f"\nSVM RBF Accuracy: {rbf_acc * 100:.2f}%")
-    print(f"SVM RBF Tempo: {rbf_time:.4f}s")
-
-    print("\nClassification Report (SVM RBF):")
-    print(classification_report(y_test, y_pred_svm_rbf))
-    report = classification_report(y_test, y_pred_svm_rbf, output_dict=True)
-    viz.save_excel(report, "svm_report.xlsx")
-
-    # =====================================================
-    # GRID SEARCH SVM
-    # =====================================================
-    print("\n" + "=" * 60)
-    print("GRID SEARCH SVM")
-    print("=" * 60)
-
-    param_grid = {
-        'C': [0.1, 1, 10, 100],
-        'kernel': ['linear', 'rbf'],
-        'gamma': ['scale', 'auto']
-    }
-
-    grid = GridSearchCV(SVC(), param_grid, cv=5, scoring='accuracy', n_jobs=-1, verbose=1)
-
-    start = time.time()
-    grid.fit(X_train, y_train)
-    grid_time = time.time() - start
-
-    print("Best parameters:", grid.best_params_)
-    print("Best CV accuracy:", grid.best_score_)
-    print(f"GridSearch Time: {grid_time:.4f}s")
-
-    best_svm = grid.best_estimator_
-    y_pred_best = best_svm.predict(X_test)
-    best_acc = accuracy_score(y_test, y_pred_best)
-
-    print(f"Test accuracy con miglior SVM: {best_acc * 100:.2f}%")
-
-    # =====================================================
-    # Analisi support vectors
-    # =====================================================
-    print("\nAnalisi Support Vectors:")
-    print("Support vectors per classe:", best_svm.n_support_)
-    print("Totale support vectors:", np.sum(best_svm.n_support_))
 
     # =====================================================
     # CONFRONTO FINALE
     # =====================================================
     print("\n" + "=" * 60)
-    print("CONFRONTO FINALE MODELLI")
+    print("CONFRONTO KNN vs SVM")
     print("=" * 60)
 
-    print(f"KNN Accuracy: {knn_acc * 100:.2f}%")
-    print(f"SVM Lineare Accuracy: {lin_acc * 100:.2f}%")
-    print(f"SVM RBF Accuracy: {rbf_acc * 100:.2f}%")
-    print(f"Best SVM (GridSearch) Accuracy: {best_acc * 100:.2f}%")
+    results, knn_report, lin_report, rbf_report = recognizer.compare_classifiers(
+        X_train,
+        y_train,
+        X_test,
+        y_test
+    )
 
-    if best_acc > knn_acc:
-        print("\n SVM performa meglio di KNN")
-    else:
-        print("\n KNN performa meglio di SVM")
+    # Salvataggio report dettagliati
+    viz.save_excel(knn_report, "knn_report.xlsx")
+    viz.save_excel(lin_report, "svm_linear_report.xlsx")
+    viz.save_excel(rbf_report, "svm_rbf_report.xlsx")
 
-    # Salvataggio risultati
-    comparison = {
-        "Model": ["KNN", "SVM Linear", "SVM RBF", "SVM Best"],
-        "Accuracy": [knn_acc, lin_acc, rbf_acc, best_acc],
-        "Time": [knn_time, lin_time, rbf_time, grid_time]
-    }
-
-    viz.save_excel(comparison, "model_comparison.xlsx")
+    # Salvataggio confronto sintetico
+    viz.save_excel(results, "model_comparison.xlsx")
 
     # === ERRORE RICOSTRUZIONE ===
     print("\n=== ANALISI ERRORE RICOSTRUZIONE ===")
@@ -215,49 +149,89 @@ def main():
     print(f"Deviazione standard MSE: {std_mse:.6f}")
     print(f"MSE minimo: {np.min(mse_per_sample):.6f}")
     print(f"MSE massimo: {np.max(mse_per_sample):.6f}")
+
     viz.plot_reconstruction_error(mse_per_sample)
 
+    # === PREDIZIONI CON CONFIDENCE ===
+    results_with_confidence = recognizer.predict_with_confidence(X_test)
+
+    # Stampiamo le prime 5 predizioni con confidence
+    print("\nPredizioni con confidence:")
+    for i, res in enumerate(results_with_confidence[:5]):
+        print(
+            f"[Sample {i:02d}] "
+            f"Pred: {int(res['prediction'])} | "
+            f"Conf: {res['confidence']:.3f} | "
+            f"Dist: {res['avg_distance']:.3f} | "
+            f"Consensus: {res['neighbor_consensus']:.2f}"
+        )
+
+    # === VALUTAZIONE ===
+    y_pred = recognizer.evaluate_knn(X_test, y_test)
+    report = viz.classifier(y_test, y_pred, output_dict=True)
+    viz.save_excel(report, "report.xlsx")
+
     # === MATRICE DI CONFUSIONE ===
-    viz.plot_confusion_matrix(y_test, y_pred_best)
+    viz.plot_confusion_matrix(y_test, y_pred)
+
+    result = recognizer.cross_validate(X_train, y_train, cv=5)
+    viz.save_excel([result], 'result.xlsx')
+
+    error = recognizer.analyze_misclassifications(X_train, y_train, y_pred)
+
+    # Mostra i primi errori
+    print("\nPrimi 5 errori di classificazione:")
+    for e in error['misclassified_samples'][:5]:
+        print(
+            f"[Idx {int(e['index']):03d}] "
+            f"True: {int(e['true_label'])} → "
+            f"Pred: {int(e['predicted_label'])} | "
+            f"Dist: {float(e['nearest_distance']):.4f}"
+        )
+
+
+    # Mostrate le coppie più confuse
+    print("\nCoppie più confuse:")
+    for pair, count in error['most_confused_pairs']:
+        print(f"{pair[0]}: {pair[1]} : {int(count)} volte")
 
     # === DISTANZE ===
     distances_train = recognizer.compute_min_distances(X_train, X_train)
     distances_test = recognizer.compute_min_distances(X_test, X_train)
-    print(f"Distanze Training Set:\n  Min: {np.min(distances_train):.4f}, Max: {np.max(distances_train):.4f}, "
-          f"Media: {np.mean(distances_train):.4f}, Std: {np.std(distances_train):.4f}")
-    print(f"\nDistanze Test Set:\n  Min: {np.min(distances_test):.4f}, Max: {np.max(distances_test):.4f}, "
-          f"Media: {np.mean(distances_test):.4f}, Std: {np.std(distances_test):.4f}")
+    print(f"Distanze Training Set:")
+    print(f"  Min: {np.min(distances_train):.4f}")
+    print(f"  Max: {np.max(distances_train):.4f}")
+    print(f"  Media: {np.mean(distances_train):.4f}")
+    print(f"  Std: {np.std(distances_train):.4f}")
 
+    print(f"\nDistanze Test Set:")
+    print(f"  Min: {np.min(distances_test):.4f}")
+    print(f"  Max: {np.max(distances_test):.4f}")
+    print(f"  Media: {np.mean(distances_test):.4f}")
+    print(f"  Std: {np.std(distances_test):.4f}")
+
+    # Visualizza distribuzione distanze
     viz.plot_distance_distribution(distances_test, recognizer.unknown_threshold)
 
     # === TEST VOLTO SCONOSCIUTO ===
-    is_image = True
-    # Prende un' immagine di esempio se settato a True altrimenti prende il rumore
     try:
-        # Carica immagine
-        img = Image.open(r"image_example.jpg").convert('L')  # converti in grayscale
-
-        # Ridimensiona alla stessa dimensione del dataset Olivetti (64x64). Ottieni dimensioni reali dataset
+        # Carica immagine reale
+        img = Image.open(r"image_example.jpg").convert('L')
         h, w = dataset.X.shape[1], dataset.X.shape[2]
-
-        img = img.resize((w, h))  # attenzione: PIL usa (width, height)
-
-        # Converti in array numpy e flatten
-        unknown_face = np.array(img).flatten().astype(float)
-
-        # Normalizza se necessario (Olivetti ha valori 0-1)
-        unknown_face /= 255.0
-
-        # Aggiungi dimensione batch
+        img = img.resize((w, h))
+        unknown_face = np.array(img).flatten().astype(float) / 255.0
         unknown_face = unknown_face.reshape(1, -1)
-        face_centered = unknown_face - dataset.mean_face
-        svd_reducer.transform(face_centered)
-    except:
-        np.random.seed(0)
-        unknown_face = np.random.rand(1, dataset.X_flat.shape[1])
+        print("Immagine caricata correttamente.")
 
-    print(f"Shape: {unknown_face.shape}")
+    except FileNotFoundError:
+        print("Immagine non trovata, genero volto casuale come placeholder...")
+        unknown_face, _, _, _ = recognizer.simulate_unknown_detection(
+            dataset.X_flat, X_train, dataset.mean_face, svd_reducer
+        )
 
+    print(f"Shape volto: {unknown_face.shape}")
+
+    # --- Riconoscimento ---
     label, distance = recognizer.detect_unknown(
         unknown_face,
         dataset.mean_face,
@@ -266,13 +240,26 @@ def main():
     )
 
     print(f"\nDistanza minima trovata: {distance:.3f}")
-    print(f"Soglia impostata: {recognizer.unknown_threshold}")
+    print(f"Soglia attiva: {recognizer.unknown_threshold:.3f}")
 
     if label == "UNKNOWN":
         print("Volto NON riconosciuto (sconosciuto)")
     else:
         print(f"Volto riconosciuto come ID: {label}")
 
+    # --- Ottimizzazione soglia ---
+    print("\nOttimizzazione soglia unknown detection...")
+    recognizer.optimize_unknown_threshold(X_train, X_test)
+
+    # --- Ri-test con soglia aggiornata ---
+    label, distance = recognizer.detect_unknown(
+        unknown_face,
+        dataset.mean_face,
+        svd_reducer,
+        X_train
+    )
+
+    # --- Visualizzazione ---
     viz.plot_new_faces(
         unknown_face=unknown_face,  # array flatten 1x4096
         X=dataset.X,  # immagini originali shape (n_samples, h, w)
@@ -281,31 +268,117 @@ def main():
         th=recognizer.unknown_threshold  # soglia utilizzata
     )
 
-    # Aggiorna soglia unknown
-    recognizer.optimize_unknown_threshold(X_train, X_test)
+    print(f"\nTest con soglia:")
+    print(f"  Distanza: {distance:.3f} | Soglia: {recognizer.unknown_threshold:.3f}")
+    if label == "UNKNOWN":
+        print("Volto NON riconosciuto (sconosciuto)\n")
+    else:
+        print(f"Volto riconosciuto come ID: {label}\n")
 
-    # Test volto sconosciuto con nuova soglia
-    label, distance = recognizer.detect_unknown(
-        unknown_face,
-        dataset.mean_face,
-        svd_reducer,
-        X_train
-    )
-    print(f"\nVolto sconosciuto test: {label}, distanza={distance:.3f}")
+    # === TEST SU CARTELLA DI IMMAGINI ===
+
+    image_dir = Path("test_unknown_detect")
+
+    valid_ext = {".jpg", ".jpeg", ".png"}
+
+    image_paths = [
+        p for p in image_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in valid_ext
+    ]
+
+    unknown_faces, distances, labels = [], [], []
+
+    h, w = dataset.X.shape[1], dataset.X.shape[2]
+
+    for img_path in image_paths:
+        try:
+            img = Image.open(img_path).convert("L").resize((w, h))
+            face = np.array(img, dtype=np.float32).flatten() / 255.0
+            face = face.reshape(1, -1)
+
+        except Exception as e:
+            print(f"Errore con {img_path.name}: {e}, sostituisco con rumore.")
+
+            face, _, _, _ = recognizer.simulate_unknown_detection(
+                dataset.X_flat,
+                X_train,
+                dataset.mean_face,
+                svd_reducer,
+            )
+
+        label, distance = recognizer.detect_unknown(
+            face, dataset.mean_face, svd_reducer, X_train)
+
+        unknown_faces.append(face)
+        distances.append(distance)
+        labels.append(label)
+
+        print(f"{img_path.name} → {label} (dist: {distance:.3f})")
+
+        # Richiama la funzione passandole la stringa del path
+        viz.plot_images_from_directory(directory_path="test_unknown_detect", n_cols=5)
+
+        # === VERIFICA DELLA SOGLIA SUI VOLTI NOTI (TEST SET) ===
+        print("\n" + "=" * 60)
+        print("VERIFICA Falsi Allarmi (False Rejection Rate)")
+        print("=" * 60)
+
+        falsi_sconosciuti = 0
+        totale_test = len(X_test_raw)
+
+        for i in range(totale_test):
+            # Prendiamo il volto originale non ridotto dal test set
+            face = X_test_raw[i].reshape(1, -1)
+
+            # Lo passiamo alla funzione che decide se è sconosciuto o no
+            label, dist = recognizer.detect_unknown(
+                face, dataset.mean_face, svd_reducer, X_train
+            )
+
+            if label == "UNKNOWN":
+                falsi_sconosciuti += 1
+
+        frr = (falsi_sconosciuti / totale_test) * 100
+        print(f"Volti noti valutati: {totale_test}")
+        print(f"Volti noti scartati per errore (bollati come UNKNOWN): {falsi_sconosciuti}")
+        print(f"Tasso di Falsi Sconosciuti (FRR): {frr:.2f}%")
+
+    # === VERIFICA DELLA SOGLIA SUI VOLTI NOTI (TEST SET) ===
+    print("\n" + "=" * 60)
+    print("VERIFICA Falsi Allarmi (False Rejection Rate)")
+    print("=" * 60)
+
+    falsi_sconosciuti = 0
+    totale_test = len(X_test_raw)
+
+    for i in range(totale_test):
+        # Prendiamo il volto originale non ridotto dal test set
+        face = X_test_raw[i].reshape(1, -1)
+
+        # Lo passiamo alla funzione che decide se è sconosciuto o no
+        label, dist = recognizer.detect_unknown(
+            face, dataset.mean_face, svd_reducer, X_train
+        )
+
+        if label == "UNKNOWN":
+            falsi_sconosciuti += 1
+
+    frr = (falsi_sconosciuti / totale_test) * 100
+    print(f"Volti noti valutati: {totale_test}")
+    print(f"Volti noti scartati per errore (bollati come UNKNOWN): {falsi_sconosciuti}")
+    print(f"Tasso di Falsi Sconosciuti (FRR): {frr:.2f}%")
 
     # === RIEPILOGO FINALE ===
-
-    accuracy = np.mean(y_pred_svm_lin == y_test)
-
-    print(f"Accuracy complessiva: {accuracy * 100:.2f}%")
-    print(f"Componenti mantenute: {n_components}")
-    print(f"Energia preservata: {energy[n_components - 1] * 100:.2f}%")
-    print(f"Riduzione dimensionale: {dataset.X_flat.shape[1]}; {n_components}")
-    print(f"Test volto sconosciuto: {'RIFIUTATO' if label == 'UNKNOWN' else 'ACCETTATO'}")
+    accuracy = np.mean(y_pred == y_test)
 
     print("\n" + "=" * 80)
     print("  ANALISI COMPLETATA")
     print("=" * 80 + "\n")
+
+    print(f"\nAccuracy complessiva: {accuracy * 100:.2f}%")
+    print(f"Componenti mantenute: {n_components}")
+    print(f"Energia preservata: {energy[n_components - 1] * 100:.2f}%")
+    print(f"Riduzione dimensionale: {dataset.X_flat.shape[1]}; {n_components}")
 
 
 if __name__ == "__main__":

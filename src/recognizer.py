@@ -1,7 +1,8 @@
 import time
 from collections import defaultdict
 import numpy as np
-from sklearn.metrics import euclidean_distances, accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
+from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import cross_val_score, StratifiedKFold, GridSearchCV
 from sklearn.svm import SVC
@@ -53,20 +54,20 @@ class FaceRecognizer:
         distances = np.min(distances, axis=1)
         return distances
 
+    # ---------------------------- UD ----------------------------
+
     def detect_unknown(self, face, mean_face, svd_reducer, X_train):
         """
-        Implementa una semplice open-set recognition.
-        Procedura:
-        1. Centratura del volto rispetto al mean face
-        2. Proiezione nello spazio SVD
-        3. Calcolo distanza minima dal training set
-        4. Confronto con soglia θ
+        Data una faccia (array flatten 1xN), la centra, la riduce con SVD
+        e calcola la distanza minima euclidea dai campioni di training.
+        Restituisce il label ('UNKNOWN' o ID) e la distanza minima.
         """
-        # Applica riduzione SVD se serve
         face_reduced = svd_reducer.transform(face - mean_face)
 
-        distances = np.linalg.norm(X_train - face_reduced, axis=1)
-        min_dist = np.min(distances)
+        # distances = np.linalg.norm(X_train - face_reduced, axis=1)
+        # min_dist = np.min(distances)
+        distances = self.compute_min_distances(face_reduced, X_train)
+        min_dist = distances[0]
 
         if min_dist > self.unknown_threshold:
             return "UNKNOWN", min_dist
@@ -74,27 +75,76 @@ class FaceRecognizer:
             predicted_id = self.knn.predict(face_reduced)[0]
             return predicted_id, min_dist
 
+    def simulate_unknown_detection(self, X_flat, X_train, mean_face, svd_reducer, seed=0):
+        """
+        Sanity check: genera un volto sintetico di puro rumore casuale
+        e verifica che venga correttamente rifiutato come sconosciuto.
+        Un volto di rumore DEVE sempre restituire 'UNKNOWN'.
+        """
+        np.random.seed(seed)
+        unknown_face = np.random.rand(1, X_flat.shape[1])
+
+        # Riusa detect_unknown per coerenza — stessa logica, stessa metrica
+        label, min_dist = self.detect_unknown(unknown_face, mean_face, svd_reducer, X_train)
+
+        print(f"Distanza minima trovata: {min_dist:.3f}")
+        print(f"Soglia attiva: {self.unknown_threshold:.3f}")
+
+        if label == "UNKNOWN":
+            print("Volto NON riconosciuto (UNKNOWN) — comportamento corretto")
+        else:
+            print(f"Volto riconosciuto come ID: {label} — soglia probabilmente troppo alta!")
+
+        # Riduzione SVD per eventuale uso esterno (es. Visualizzazione)
+        unknown_svd = svd_reducer.transform(unknown_face - mean_face)
+
+        return unknown_face, unknown_svd, min_dist, label
+
+    def optimize_unknown_threshold(self, X_train, X_val):
+        """
+        Calcola automaticamente la soglia ottimale per unknown detection
+        basandosi sulla distribuzione delle distanze minime sul validation set.
+        Soglia = media + 2 * deviazione standard (copre ~97.5% dei volti noti).
+        """
+        distances = self.compute_min_distances(X_val, X_train)
+
+        mean_d = float(np.mean(distances))
+        std_d = float(np.std(distances))
+        optimal_threshold = mean_d + 2 * std_d
+        self.unknown_threshold = optimal_threshold
+
+        result = {
+            'optimal_threshold': optimal_threshold,
+            'distance_stats': {
+                'mean': mean_d,
+                'std': std_d,
+                'median': float(np.median(distances)),
+                'p95': float(np.percentile(distances, 95))  # fix: era uguale a optimal_threshold
+            }
+        }
+
+        print(f"\nSoglia: {optimal_threshold:.3f}")
+        print(
+            f"   mean={mean_d:.3f} | std={std_d:.3f} | median={result['distance_stats']['median']:.3f} | p95={result['distance_stats']['p95']:.3f}")
+
+        return result
+
     # ---------------------------- Cross Validation e Analisi Errori ----------------------------
 
     def cross_validate(self, X, y, cv=5):
-        """
-        Esegue una valutazione della robustezza del modello tramite Stratified K-Fold cross-validation.
+        """ Esegue una valutazione della robustezza del modello tramite Stratified K-Fold cross-validation."""
 
-        Restituisce:
-        - media accuracy
-        - deviazione standard
-        - intervallo di confidenza approx (±2σ)
-        """
         skf = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
         scores = cross_val_score(self.knn, X, y, cv=skf, scoring='accuracy')
 
         result = {
             'mean_accuracy': scores.mean(),
             'std_accuracy': scores.std(),
-            'all_scores': scores,
             'confidence_interval inf': float(scores.mean() - 2 * scores.std()),
             'confidence_interval sup': float(scores.mean() + 2 * scores.std()),
         }
+        for i, score in enumerate(scores, start=1):
+            result[f'score_{i}'] = float(score)
         return result
 
     def analyze_misclassifications(self, X_test, y_test, y_pred):
@@ -117,7 +167,6 @@ class FaceRecognizer:
                     'nearest_distance': distances[0][0]
                 })
 
-        # Coppie più confuse
         confusion_pairs = {}
         for error in errors['misclassified_samples']:
             pair = (error['true_label'], error['predicted_label'])
@@ -145,7 +194,7 @@ class FaceRecognizer:
         param_grid = {
             'n_neighbors': [1, 3, 5, 7, 9],
             'weights': ['uniform', 'distance'],
-            'metric': ['euclidean', 'manhattan']
+            'metric': ['euclidean', 'manhattan', 'cosine']
         }
 
         grid_search = GridSearchCV(
@@ -165,24 +214,6 @@ class FaceRecognizer:
 
         return grid_search.best_params_, grid_search.best_score_
 
-
-
-    def predict_with_confidence_svm(self, X_test_svd):
-        """
-        Restituisce predizione SVM + confidence nello spazio SVD.
-        X_test_svd deve essere già ridotto con svd_reducer.transform
-        """
-        results = []
-        for face_svd in X_test_svd:
-            face_svd = face_svd.reshape(1, -1)
-            probs = self.svm.predict_proba(face_svd)[0]
-            pred_class = self.svm.classes_[np.argmax(probs)]
-            confidence = np.max(probs)
-            results.append({
-                'prediction': pred_class,
-                'confidence': confidence
-            })
-        return results
 
     def predict_with_confidence(self, X_test):
         """Predizioni con score di confidenza."""
@@ -209,23 +240,6 @@ class FaceRecognizer:
 
         return results
 
-    def optimize_unknown_threshold(self, X_train, X_val):
-        """Calcola automaticamente la soglia ottimale per unknown detection."""
-        distances = self.compute_min_distances(X_val, X_train)
-
-        optimal_threshold = np.mean(distances) + 2 * np.std(distances)
-        self.unknown_threshold = optimal_threshold
-
-        return {
-            'optimal_threshold': optimal_threshold,
-            'distance_stats': {
-                'mean': np.mean(distances),
-                'std': np.std(distances),
-                'median': np.median(distances),
-                'p95': optimal_threshold
-            }
-        }
-
 
     # ---------------------------- SVM ----------------------------
 
@@ -233,8 +247,7 @@ class FaceRecognizer:
         """
         Addestra SVM nello spazio SVD.
 
-        L'SVM costruisce un iperpiano con margine massimo
-        tra le classi.
+        L'SVM costruisce un iperpiano con margine massimo tra le classi.
         """
         self.svm.fit(X_train, y_train)
 
@@ -274,7 +287,9 @@ class FaceRecognizer:
 
         self.svm = grid.best_estimator_
 
-        return grid.best_params_, grid.best_score_
+        support_per_classes = grid.best_estimator_.n_support_
+        support_total = np.sum(support_per_classes)
+        return grid.best_params_, grid.best_score_, support_total, support_per_classes
 
     def predict_svm_with_distance(self, face_svd):
         """
@@ -295,45 +310,116 @@ class FaceRecognizer:
 
         return prediction, margin
 
+
+    def predict_with_confidence_svm(self, X_test_svd):
+        """
+        Restituisce predizione SVM + confidence nello spazio SVD.
+        X_test_svd deve essere già ridotto con svd_reducer.transform
+        """
+        results = []
+        for face_svd in X_test_svd:
+            face_svd = face_svd.reshape(1, -1)
+            probs = self.svm.predict_proba(face_svd)[0]
+            pred_class = self.svm.classes_[np.argmax(probs)]
+            confidence = np.max(probs)
+            results.append({
+                'prediction': pred_class,
+                'confidence': confidence
+            })
+        return results
+
+    # ---------------------------- compare classifiers ----------------------------
+
     def compare_classifiers(self, X_train, y_train, X_test, y_test):
         """
         Confronta le performance tra:
-        - KNN (default con n_neighbors)
+        - KNN
         - SVM lineare
         - SVM RBF
 
-        Restituisce un dizionario con accuracy e tempi.
+        Restituisce un dizionario con accuracy, precision, recall, f1-score,
+        classification report e tempi.
         """
         results = {}
 
-        #  KNN 
+        # ===================== KNN =====================
         start = time.time()
-        cv_scores = cross_val_score(self.knn, X_train, y_train, cv=5)
-        knn_acc = cv_scores.mean()
+
         self.train_knn(X_train, y_train)
         y_pred_knn = self.knn.predict(X_test)
-        knn_time = time.time() - start
-        results['KNN'] = {'accuracy': knn_acc, 'time': knn_time, 'y_pred': y_pred_knn}
-        print(f"KNN Accuracy: {knn_acc * 100:.2f}%, Time: {knn_time:.4f}s")
 
-        #  SVM LINEARE 
+        knn_time = time.time() - start
+
+        knn_acc = accuracy_score(y_test, y_pred_knn)
+        knn_prec = precision_score(y_test, y_pred_knn, average='weighted')
+        knn_rec = recall_score(y_test, y_pred_knn, average='weighted')
+        knn_f1 = f1_score(y_test, y_pred_knn, average='weighted')
+        knn_report = classification_report(y_test, y_pred_knn, output_dict=True)
+
+        results['KNN'] = {
+            'accuracy': knn_acc,
+            'precision': knn_prec,
+            'recall': knn_rec,
+            'f1_score': knn_f1,
+            'time': knn_time,
+        }
+
+        print(
+            f"KNN -> Acc: {knn_acc:.4f}, Prec: {knn_prec:.4f}, Rec: {knn_rec:.4f}, F1: {knn_f1:.4f}, Time: {knn_time:.4f}s")
+        print(classification_report(y_test, y_pred_knn))
+
+        # ===================== SVM LINEARE =====================
         start = time.time()
+
         svm_lin = SVC(kernel='linear', C=1, probability=True)
         svm_lin.fit(X_train, y_train)
         y_pred_lin = svm_lin.predict(X_test)
-        lin_time = time.time() - start
-        lin_acc = accuracy_score(y_test, y_pred_lin)
-        results['SVM Linear'] = {'accuracy': lin_acc, 'time': lin_time, 'y_pred': y_pred_lin}
-        print(f"SVM Linear Accuracy: {lin_acc * 100:.2f}%, Time: {lin_time:.4f}s")
 
-        #  SVM RBF 
+        lin_time = time.time() - start
+
+        lin_acc = accuracy_score(y_test, y_pred_lin)
+        lin_prec = precision_score(y_test, y_pred_lin, average='weighted')
+        lin_rec = recall_score(y_test, y_pred_lin, average='weighted')
+        lin_f1 = f1_score(y_test, y_pred_lin, average='weighted')
+        lin_report = classification_report(y_test, y_pred_lin, output_dict=True)
+
+        results['SVM Linear'] = {
+            'accuracy': lin_acc,
+            'precision': lin_prec,
+            'recall': lin_rec,
+            'f1_score': lin_f1,
+            'time': lin_time,
+        }
+
+        print(
+            f"SVM Linear -> Acc: {lin_acc:.4f}, Prec: {lin_prec:.4f}, Rec: {lin_rec:.4f}, F1: {lin_f1:.4f}, Time: {lin_time:.4f}s")
+        print(classification_report(y_test, y_pred_lin))
+
+        # ===================== SVM RBF =====================
         start = time.time()
+
         svm_rbf = SVC(kernel='rbf', C=10, gamma='scale', probability=True)
         svm_rbf.fit(X_train, y_train)
         y_pred_rbf = svm_rbf.predict(X_test)
-        rbf_time = time.time() - start
-        rbf_acc = accuracy_score(y_test, y_pred_rbf)
-        results['SVM RBF'] = {'accuracy': rbf_acc, 'time': rbf_time, 'y_pred': y_pred_rbf}
-        print(f"SVM RBF Accuracy: {rbf_acc * 100:.2f}%, Time: {rbf_time:.4f}s")
 
-        return results
+        rbf_time = time.time() - start
+
+        rbf_acc = accuracy_score(y_test, y_pred_rbf)
+        rbf_prec = precision_score(y_test, y_pred_rbf, average='weighted')
+        rbf_rec = recall_score(y_test, y_pred_rbf, average='weighted')
+        rbf_f1 = f1_score(y_test, y_pred_rbf, average='weighted')
+        rbf_report = classification_report(y_test, y_pred_rbf, output_dict=True)
+
+        results['SVM RBF'] = {
+            'accuracy': rbf_acc,
+            'precision': rbf_prec,
+            'recall': rbf_rec,
+            'f1_score': rbf_f1,
+            'time': rbf_time,
+        }
+
+        print(
+            f"SVM RBF -> Acc: {rbf_acc:.4f}, Prec: {rbf_prec:.4f}, Rec: {rbf_rec:.4f}, F1: {rbf_f1:.4f}, Time: {rbf_time:.4f}s")
+        print(classification_report(y_test, y_pred_rbf))
+
+        return results, knn_report, lin_report, rbf_report

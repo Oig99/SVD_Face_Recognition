@@ -85,6 +85,7 @@ class DataLoader:
         """ Divide i dati ridotti in training e test set. """
         if self.y is None:
             raise ValueError("Le etichette non sono state caricate.")
+
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
             X_reduced,
             self.y,
