@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 from PIL import Image
 from src.data_loader import DataLoader
@@ -274,99 +272,6 @@ def main():
         print("Volto NON riconosciuto (sconosciuto)\n")
     else:
         print(f"Volto riconosciuto come ID: {label}\n")
-
-    # === TEST SU CARTELLA DI IMMAGINI ===
-
-    image_dir = Path("test_unknown_detect")
-
-    valid_ext = {".jpg", ".jpeg", ".png"}
-
-    image_paths = [
-        p for p in image_dir.iterdir()
-        if p.is_file() and p.suffix.lower() in valid_ext
-    ]
-
-    unknown_faces, distances, labels = [], [], []
-
-    h, w = dataset.X.shape[1], dataset.X.shape[2]
-
-    for img_path in image_paths:
-        try:
-            img = Image.open(img_path).convert("L").resize((w, h))
-            face = np.array(img, dtype=np.float32).flatten() / 255.0
-            face = face.reshape(1, -1)
-
-        except Exception as e:
-            print(f"Errore con {img_path.name}: {e}, sostituisco con rumore.")
-
-            face, _, _, _ = recognizer.simulate_unknown_detection(
-                dataset.X_flat,
-                X_train,
-                dataset.mean_face,
-                svd_reducer,
-            )
-
-        label, distance = recognizer.detect_unknown(
-            face, dataset.mean_face, svd_reducer, X_train)
-
-        unknown_faces.append(face)
-        distances.append(distance)
-        labels.append(label)
-
-        print(f"{img_path.name} → {label} (dist: {distance:.3f})")
-
-        # Richiama la funzione passandole la stringa del path
-        viz.plot_images_from_directory(directory_path="test_unknown_detect", n_cols=5)
-
-        # === VERIFICA DELLA SOGLIA SUI VOLTI NOTI (TEST SET) ===
-        print("\n" + "=" * 60)
-        print("VERIFICA Falsi Allarmi (False Rejection Rate)")
-        print("=" * 60)
-
-        falsi_sconosciuti = 0
-        totale_test = len(X_test_raw)
-
-        for i in range(totale_test):
-            # Prendiamo il volto originale non ridotto dal test set
-            face = X_test_raw[i].reshape(1, -1)
-
-            # Lo passiamo alla funzione che decide se è sconosciuto o no
-            label, dist = recognizer.detect_unknown(
-                face, dataset.mean_face, svd_reducer, X_train
-            )
-
-            if label == "UNKNOWN":
-                falsi_sconosciuti += 1
-
-        frr = (falsi_sconosciuti / totale_test) * 100
-        print(f"Volti noti valutati: {totale_test}")
-        print(f"Volti noti scartati per errore (bollati come UNKNOWN): {falsi_sconosciuti}")
-        print(f"Tasso di Falsi Sconosciuti (FRR): {frr:.2f}%")
-
-    # === VERIFICA DELLA SOGLIA SUI VOLTI NOTI (TEST SET) ===
-    print("\n" + "=" * 60)
-    print("VERIFICA Falsi Allarmi (False Rejection Rate)")
-    print("=" * 60)
-
-    falsi_sconosciuti = 0
-    totale_test = len(X_test_raw)
-
-    for i in range(totale_test):
-        # Prendiamo il volto originale non ridotto dal test set
-        face = X_test_raw[i].reshape(1, -1)
-
-        # Lo passiamo alla funzione che decide se è sconosciuto o no
-        label, dist = recognizer.detect_unknown(
-            face, dataset.mean_face, svd_reducer, X_train
-        )
-
-        if label == "UNKNOWN":
-            falsi_sconosciuti += 1
-
-    frr = (falsi_sconosciuti / totale_test) * 100
-    print(f"Volti noti valutati: {totale_test}")
-    print(f"Volti noti scartati per errore (bollati come UNKNOWN): {falsi_sconosciuti}")
-    print(f"Tasso di Falsi Sconosciuti (FRR): {frr:.2f}%")
 
     # === RIEPILOGO FINALE ===
     accuracy = np.mean(y_pred == y_test)
