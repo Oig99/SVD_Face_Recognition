@@ -124,7 +124,6 @@ def main():
 
 
     # === ANALISI ERRORE DI RICOSTRUZIONE ===
-
     mse_per_sample = np.mean((dataset.X_flat - X_reconstructed) ** 2, axis=1)
     mean_mse = np.mean(mse_per_sample)
     std_mse = np.std(mse_per_sample)

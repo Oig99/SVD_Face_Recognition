@@ -201,7 +201,7 @@ Train/Test Split (80/20 stratificato)
      └──► SVM Grid Search (CV=5)
           │
           ▼
-     Metriche, cross-validation, matrice di confusione
+     Metriche, cross-validation, matrice di confusione, analisi classificatore scelta degli iperparametri
           │
           ▼
      Unknown Detection (soglia distanze)
@@ -229,7 +229,6 @@ Olivetti richiede meno componenti in valore assoluto — nonostante abbia più f
 | KNN (k=1) | 94.00% | 62.02% | −31.98 pp |
 | SVM Lineare | 94.00% | **81.01%** | −12.99 pp |
 | SVM RBF | 92.00% | 79.82% | −12.18 pp |
-| SVM Best (Grid Search) | **94.00%** | 80.42% | −13.58 pp |
 
 Il pattern è chiaro: su Olivetti KNN è competitivo come SVM (parità a 94%), mentre su LFW il gap si apre drammaticamente — quasi 19 punti percentuali tra KNN e SVM lineare. La ragione è geometrica: in uno spazio a bassa variabilità come Olivetti, la prossimità euclidea è un segnale affidabile di identità; su LFW la distribuzione di ogni classe è molto più dispersa, e la prossimità locale non è più sufficiente — serve un separatore globale come SVM.
 
@@ -310,6 +309,8 @@ Queste limitazioni sono intenzionali: il focus del progetto è analizzare il com
 - **Soglia unknown adattiva.** La soglia attuale (95° percentile delle distanze) è calcolata globalmente. Una versione per-classe — dove ogni classe ha la propria soglia calibrata sulle distanze intra-classe — potrebbe migliorare sensibilmente il rilevamento di volti sconosciuti, specialmente su LFW dove le distanze variano molto tra classi.
 
 - **Metriche di distanza alternative.** Sostituire la distanza euclidea con la distanza di Mahalanobis (che tiene conto della covarianza delle feature) o il cosine similarity potrebbe rendere il KNN e la soglia unknown più robusti alla varianza non uniforme nello spazio SVD.
+
+
 
 ---
 

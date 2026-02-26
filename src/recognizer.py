@@ -17,7 +17,7 @@ class FaceRecognizer:
     - Stima soglia per unknown detection
     - Confronto tra classificatori
     """
-    def __init__(self, n_neighbors=1, unknown_threshold=0.5, kernel='rbf', C=10, gamma='scale', metric="manhattan", wgs="uniform", singular_values=None):
+    def __init__(self, n_neighbors=1, unknown_threshold=0.5, kernel='rbf', C=0.1, gamma='scale', metric="manhattan", wgs="uniform", singular_values=None):
         self.y_train = None
         self.n_neighbors = n_neighbors # Parametri del classificatore
         self.unknown_threshold = unknown_threshold # Soglia per decidere se un volto è sconosciuto
@@ -105,6 +105,10 @@ class FaceRecognizer:
         Calcola automaticamente la soglia ottimale per unknown detection
         basandosi sulla distribuzione delle distanze minime sul validation set.
         Soglia = media + 2 * deviazione standard (copre ~97.5% dei volti noti).
+
+        Nota: questo metodo calibra la soglia solo sui NOTI.
+        Per una calibrazione più precisa che usa anche esempi di sconosciuti reali,
+        usa calibrate_threshold_with_unknowns().
         """
         distances = self.compute_min_distances(X_val, X_train)
 
@@ -119,13 +123,16 @@ class FaceRecognizer:
                 'mean': mean_d,
                 'std': std_d,
                 'median': float(np.median(distances)),
-                'p95': float(np.percentile(distances, 95))  # fix: era uguale a optimal_threshold
+                'p95': float(np.percentile(distances, 95))
             }
         }
 
-        print(f"\nSoglia: {optimal_threshold:.3f}")
+        print(f"\nSoglia (mean+2σ): {optimal_threshold:.3f}")
         print(
-            f"   mean={mean_d:.3f} | std={std_d:.3f} | median={result['distance_stats']['median']:.3f} | p95={result['distance_stats']['p95']:.3f}")
+            f"   mean={mean_d:.3f} | std={std_d:.3f} | "
+            f"median={result['distance_stats']['median']:.3f} | "
+            f"p95={result['distance_stats']['p95']:.3f}"
+        )
 
         return result
 
@@ -138,8 +145,24 @@ class FaceRecognizer:
         scores = cross_val_score(self.knn, X, y, cv=skf, scoring='accuracy')
 
         result = {
-            'mean_accuracy': scores.mean(),
-            'std_accuracy': scores.std(),
+            'mean_accuracy': float(scores.mean()),
+            'std_accuracy': float(scores.std()),
+            'confidence_interval inf': float(scores.mean() - 2 * scores.std()),
+            'confidence_interval sup': float(scores.mean() + 2 * scores.std()),
+        }
+        for i, score in enumerate(scores, start=1):
+            result[f'score_{i}'] = float(score)
+        return result
+
+    def cross_validate_svm(self, X, y, cv=5):
+        """ Esegue una valutazione della robustezza del modello tramite Stratified K-Fold cross-validation. per svm"""
+
+        skf = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
+        scores = cross_val_score(self.svm, X, y, cv=skf, scoring='accuracy')
+
+        result = {
+            'mean_accuracy': float(scores.mean()),
+            'std_accuracy': float(scores.std()),
             'confidence_interval inf': float(scores.mean() - 2 * scores.std()),
             'confidence_interval sup': float(scores.mean() + 2 * scores.std()),
         }

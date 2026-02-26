@@ -165,14 +165,14 @@ def main():
         )
 
     # === VALUTAZIONE ===
-    y_pred = recognizer.evaluate_knn(X_test, y_test)
+    y_pred = recognizer.evaluate_svm(X_test)
     report = viz.classifier(y_test, y_pred, output_dict=True)
     viz.save_excel(report, "report.xlsx")
 
     # === MATRICE DI CONFUSIONE ===
     viz.plot_confusion_matrix(y_test, y_pred)
 
-    result = recognizer.cross_validate(X_train, y_train, cv=5)
+    result = recognizer.cross_validate_svm(X_train, y_train, cv=5)
     viz.save_excel([result], 'result.xlsx')
 
     error = recognizer.analyze_misclassifications(X_train, y_train, y_pred)

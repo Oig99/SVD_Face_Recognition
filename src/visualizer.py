@@ -1,10 +1,7 @@
-import math
 import os.path
-from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from PIL import Image
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
 
 
@@ -42,9 +39,7 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'sample_faces.png')
         plt.savefig(filepath)
-        
-        
-        
+
     def plot_mean_face(self, mean_face, shape=(64, 64)):
         """
         Visualizza il volto medio del dataset.
@@ -58,7 +53,6 @@ class Visualizer:
         plt.axis('off')
         filepath = os.path.join(self.path, 'mean_faces.png')
         plt.savefig(filepath)
-        
 
     def plot_mean_face_lfw(self, mean_face, X):
         """
@@ -71,10 +65,9 @@ class Visualizer:
         plt.axis('off')
         filepath = os.path.join(self.path, 'mean_faces.png')
         plt.savefig(filepath)
-        
 
     # ---------------------------- Eigenfaces e analisi spettrale ----------------------------
-    
+
     def plot_eigenfaces(self, VT, n_components=10, shape=(64, 64)):
         """
         Visualizza le prime eigenfaces (componenti principali).
@@ -94,7 +87,6 @@ class Visualizer:
         plt.suptitle("Prime 10 Eigenfaces")
         filepath = os.path.join(self.path, 'eigenfaces.png')
         plt.savefig(filepath)
-        
 
     def plot_eigenfaces_lfw(self, VT, X, n_components=10):
         """
@@ -115,9 +107,7 @@ class Visualizer:
         plt.suptitle("Prime 10 Eigenfaces")
         filepath = os.path.join(self.path, 'eigenfaces.png')
         plt.savefig(filepath)
-        
 
-    
     def plot_cumulative_energy(self, energy):
         """
         Mostra l'energia cumulativa spiegata dalle componenti SVD.
@@ -138,7 +128,6 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'cumulative_energy.png')
         plt.savefig(filepath)
-        
 
     # ---------------------------- Geometria nello spazio ridotto ----------------------------
 
@@ -162,10 +151,9 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'projection.png')
         plt.savefig(filepath)
-        
 
     # ---------------------------- Analisi classificazione ----------------------------
-    
+
     def plot_confusion_matrix(self, y_test, y_pred):
         """
         Matrice di confusione.
@@ -183,10 +171,8 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'confusion_matrix.png')
         plt.savefig(filepath)
-        
 
-    
-    def plot_distance_distribution(self, distances_test, threshold):
+    def plot_distance_distribution(self, distances_test, threshold, filename='distance_distribution.png'):
         """
         Visualizza la distribuzione delle distanze minime per train e test set.
         Utile per analizzare la soglia di riconoscimento volti sconosciuti.
@@ -204,9 +190,8 @@ class Visualizer:
         plt.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        filepath = os.path.join(self.path, 'distance_distribution.png')
+        filepath = os.path.join(self.path, filename)
         plt.savefig(filepath)
-        
 
     # ---------------------------- Ricostruzione ----------------------------
 
@@ -240,7 +225,6 @@ class Visualizer:
         plt.suptitle("Confronto Originali vs Ricostruiti", fontsize=16, fontweight='bold')
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.savefig(os.path.join(self.path, 'all_reconstructions.png'), bbox_inches='tight')
-        
 
     def plot_original_vs_reconstructed_lfw(self, X_original, X_reconstructed, y_true, X, num_samples=5):
         """
@@ -294,6 +278,7 @@ class Visualizer:
 
         plt.tight_layout()
         plt.savefig(os.path.join(self.path, filepath), bbox_inches='tight')
+        plt.show()
         plt.close()
     # ----------------------------  Errore di ricostruzione ----------------------------
 
@@ -315,16 +300,13 @@ class Visualizer:
             bins = 1
         else:
             bins = min(30, len(unique_vals))
-
         plt.hist(mse_per_sample, bins=bins, alpha=0.7, edgecolor='black')
         plt.xlabel("Indice campione")
         plt.ylabel("MSE")
         plt.title("Errore di ricostruzione per campione")
         plt.grid(True, alpha=0.3)
-
         filepath = os.path.join(self.path, 'reconstruction_error.png')
         plt.savefig(filepath)
-        
         plt.close()
 
     # ----------------------------  utils ----------------------------
