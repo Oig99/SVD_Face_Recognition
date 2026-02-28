@@ -173,7 +173,7 @@ def main():
         )
 
     # === VALUTAZIONE ===
-    y_pred = recognizer.evaluate_knn(X_test, y_test)
+    y_pred = recognizer.evaluate_knn(X_test)
     report = viz.classifier(y_test, y_pred, output_dict=True)
     viz.save_excel(report, "report_prediction.xlsx")
 

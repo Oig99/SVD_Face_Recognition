@@ -273,6 +273,112 @@ def main():
     else:
         print(f"Volto riconosciuto come ID: {label}\n")
 
+    # === UNKNOWN DETECTION CON DATASET ESTESO ===
+    print("\n=== UNKNOWN DETECTION - CLASSI LFW ===")
+
+    X_ud, X_flat_ud, y_ud = dataset.dataset_lfw_unknow_detection()
+
+    # Identifica le classi note (quelle usate nel training originale min_faces=60)
+    known_classes = set(np.unique(dataset.y))
+    unknown_mask = ~np.isin(y_ud, list(known_classes))
+
+    X_unknown_flat = X_flat_ud[unknown_mask]
+    X_unknown_imgs = X_ud[unknown_mask]
+    y_unknown = y_ud[unknown_mask]
+
+    print(f"Campioni unknown trovati: {X_unknown_flat.shape[0]}")
+    print(f"Classi unknown uniche: {len(np.unique(y_unknown))}")
+
+    # --- Ricalibra soglia con misto noti + unknown ---
+    n_val = min(500, len(X_unknown_flat))
+    dist_known = recognizer.compute_min_distances(X_test, X_train)
+
+    # Calcola distanze unknown senza chiamare detect_unknown in loop (più veloce)
+    X_unknown_centered = X_unknown_flat[:n_val] - dataset.mean_face
+    X_unknown_reduced = svd_reducer.transform(X_unknown_centered)
+    dist_unknown_val = recognizer.compute_min_distances(X_unknown_reduced, X_train)
+
+    # Ottimizzazione soglia bilanciata FAR/FRR
+    thresholds = np.linspace(
+        min(dist_known.min(), dist_unknown_val.min()),
+        max(dist_known.max(), dist_unknown_val.max()),
+        200
+    )
+
+    best_th, best_score = None, -1
+    for th in thresholds:
+        frr = np.mean(dist_known > th)  # noti rifiutati
+        far = np.mean(dist_unknown_val < th)  # unknown accettati
+        score = 1 - (far + frr) / 2
+        if score > best_score:
+            best_score = score
+            best_th = th
+
+    print(f"\nSoglia ottimale bilanciata: {best_th:.4f}")
+    print(f"Score bilanciato: {best_score:.4f}")
+    recognizer.unknown_threshold = best_th
+
+    # --- Valutazione su tutto il set unknown ---
+    results_ud = []
+    for i, face in enumerate(X_unknown_flat):
+        face_c = face.reshape(1, -1) - dataset.mean_face
+        face_r = svd_reducer.transform(face_c)
+        dist = recognizer.compute_min_distances(face_r, X_train)[0]
+        label_ud = "UNKNOWN" if dist > recognizer.unknown_threshold else int(recognizer.knn.predict(face_r)[0])
+        results_ud.append({
+            'index': i,
+            'true_class': int(y_unknown[i]),
+            'label': label_ud,
+            'distance': float(dist),
+            'correctly_rejected': label_ud == "UNKNOWN"
+        })
+
+    correctly_rejected = sum(r['correctly_rejected'] for r in results_ud)
+    total_unknown = len(results_ud)
+    far_final = 1 - (correctly_rejected / total_unknown)
+
+    print(f"\nRisultati Unknown Detection (soglia ricalibrata):")
+    print(f"  Correttamente rifiutati: {correctly_rejected}/{total_unknown}")
+    print(f"  False Accept Rate (FAR): {far_final:.3f}")
+    print(f"  Soglia usata: {recognizer.unknown_threshold:.3f}")
+
+    # Veri negativi: unknown correttamente rifiutati
+    TN = correctly_rejected
+
+    # Falsi positivi: unknown erroneamente accettati
+    FP = total_unknown - correctly_rejected
+
+    # Veri positivi: noti correttamente classificati (dal test set normale)
+    TP = int(np.sum(recognizer.evaluate_knn(X_test) == y_test))
+
+    # Falsi negativi: noti rifiutati come unknown
+    y_pred_test = recognizer.evaluate_knn(X_test)
+    FN = int(np.sum(y_pred_test != y_test))
+
+    # Accuracy bilanciata open-set
+    total = TP + TN + FP + FN
+    accuracy_openset = (TP + TN) / total * 100
+
+    print(f"TP (noti corretti) : {TP}")
+    print(f"TN (unknown rifiutati) : {TN}")
+    print(f"FP (unknown accettati) : {FP}")
+    print(f"FN (noti rifiutati) : {FN}")
+    print(f"TRR (True Rejection Rate) : {TN / (TN + FP) * 100:.2f}%")
+    print(f"FAR (False Accept Rate) : {FP / (TN + FP) * 100:.2f}%")
+    print(f"Accuracy open-set : {accuracy_openset:.2f}%")
+
+    # --- Visualizzazione campioni ---
+    viz.plot_unknown_detection_results(
+        X_ud=X_unknown_imgs,
+        y_ud=y_unknown,
+        results_ud=results_ud,
+        X_ref=dataset.X,
+        n_samples=10
+    )
+
+    # --- Salva risultati ---
+    viz.save_excel(results_ud, "unknown_detection_results.xlsx")
+
     # === RIEPILOGO FINALE ===
     accuracy = np.mean(y_pred == y_test)
 

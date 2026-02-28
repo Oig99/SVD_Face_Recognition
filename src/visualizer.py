@@ -278,8 +278,44 @@ class Visualizer:
 
         plt.tight_layout()
         plt.savefig(os.path.join(self.path, filepath), bbox_inches='tight')
+        plt.close()
+
+    def plot_unknown_detection_results(self, X_ud, y_ud, results_ud, X_ref, n_samples=10):
+        """
+        Visualizza un campione di volti unknown con l'esito della detection.
+        Verde = correttamente rifiutato (UNKNOWN)
+        Rosso = erroneamente accettato (falso positivo)
+        """
+        h, w = X_ref.shape[1], X_ref.shape[2]
+        n_samples = min(n_samples, len(results_ud))
+
+        fig, axes = plt.subplots(2, n_samples // 2, figsize=(n_samples * 2, 6))
+        axes = axes.ravel()
+
+        for i, ax in enumerate(axes):
+            r = results_ud[i]
+            img = X_ud[r['index']].reshape(h, w)
+            true_cls = y_ud[r['index']]
+
+            ax.imshow(img, cmap='gray')
+            ax.axis('off')
+
+            color = 'green' if r['correctly_rejected'] else 'red'
+            esito = "UNKNOWN" if r['correctly_rejected'] else f"ID:{r['label']}"
+
+            ax.set_title(
+                f"True:{true_cls} | {esito}\nd={r['distance']:.2f}",
+                color=color,
+                fontsize=8
+            )
+
+        plt.suptitle("Unknown Detection — Verde=Rifiutato  Rosso=Accettato", fontsize=12)
+        plt.tight_layout()
+        filepath = os.path.join(self.path, 'unknown_detection_faces.png')
+        plt.savefig(filepath)
         plt.show()
         plt.close()
+
     # ----------------------------  Errore di ricostruzione ----------------------------
 
     def plot_reconstruction_error(self, mse_per_sample):
@@ -314,7 +350,7 @@ class Visualizer:
     def save_excel(self, df, filename):
         """Salva excel"""
         df = pd.DataFrame(df).transpose()
-        df.to_excel(os.path.join(self.path, filename))
+        df.to_excel(os.path.join(self.path, filename), index=False)
 
     @staticmethod
     def classifier(y_test, y_pred, output_dict):

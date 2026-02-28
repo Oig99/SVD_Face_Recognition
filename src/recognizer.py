@@ -22,7 +22,8 @@ class FaceRecognizer:
         self.n_neighbors = n_neighbors # Parametri del classificatore
         self.unknown_threshold = unknown_threshold # Soglia per decidere se un volto è sconosciuto
         self.knn = KNeighborsClassifier(n_neighbors=self.n_neighbors, metric=metric, weights=wgs)
-        self.svm = SVC(kernel=kernel, C=C, gamma=gamma, probability=True)
+        self.svm = SVC(kernel="linear", C=C, gamma=gamma, probability=True)
+        self.svm_rbf = SVC(kernel=kernel, C=10, gamma=gamma, probability=True)
         self.singular_values = singular_values
 
     # ---------------------------- KNN ----------------------------
@@ -36,7 +37,7 @@ class FaceRecognizer:
         self.knn.fit(X_train, y_train)
         self.y_train = y_train
 
-    def evaluate_knn(self, X_test, y_test):
+    def evaluate_knn(self, X_test):
         """
         Esegue predizione su test set. Restituisce le etichette predette.
         """
@@ -54,7 +55,7 @@ class FaceRecognizer:
         distances = np.min(distances, axis=1)
         return distances
 
-    # ---------------------------- UD ----------------------------
+    # ---------------------------- Unknown detection ----------------------------
 
     def detect_unknown(self, face, mean_face, svd_reducer, X_train):
         """
@@ -155,7 +156,7 @@ class FaceRecognizer:
         return result
 
     def cross_validate_svm(self, X, y, cv=5):
-        """ Esegue una valutazione della robustezza del modello tramite Stratified K-Fold cross-validation. per svm"""
+        """ Esegue una valutazione della robustezza del modello tramite Stratified K-Fold cross-validation per svm"""
 
         skf = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
         scores = cross_val_score(self.svm, X, y, cv=skf, scoring='accuracy')
@@ -394,7 +395,7 @@ class FaceRecognizer:
         # ===================== SVM LINEARE =====================
         start = time.time()
 
-        svm_lin = SVC(kernel='linear', C=1, probability=True)
+        svm_lin = self.svm
         svm_lin.fit(X_train, y_train)
         y_pred_lin = svm_lin.predict(X_test)
 
@@ -421,7 +422,7 @@ class FaceRecognizer:
         # ===================== SVM RBF =====================
         start = time.time()
 
-        svm_rbf = SVC(kernel='rbf', C=10, gamma='scale', probability=True)
+        svm_rbf = self.svm_rbf
         svm_rbf.fit(X_train, y_train)
         y_pred_rbf = svm_rbf.predict(X_test)
 
