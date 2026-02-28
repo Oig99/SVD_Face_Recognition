@@ -39,6 +39,8 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'sample_faces.png')
         plt.savefig(filepath)
+        plt.show()
+        plt.close()
 
     def plot_mean_face(self, mean_face, shape=(64, 64)):
         """
@@ -53,6 +55,8 @@ class Visualizer:
         plt.axis('off')
         filepath = os.path.join(self.path, 'mean_faces.png')
         plt.savefig(filepath)
+        plt.show()
+        plt.close()
 
     def plot_mean_face_lfw(self, mean_face, X):
         """
@@ -65,6 +69,8 @@ class Visualizer:
         plt.axis('off')
         filepath = os.path.join(self.path, 'mean_faces.png')
         plt.savefig(filepath)
+        plt.show()
+        plt.close()
 
     # ---------------------------- Eigenfaces e analisi spettrale ----------------------------
 
@@ -87,6 +93,8 @@ class Visualizer:
         plt.suptitle("Prime 10 Eigenfaces")
         filepath = os.path.join(self.path, 'eigenfaces.png')
         plt.savefig(filepath)
+        plt.show()
+        plt.close()
 
     def plot_eigenfaces_lfw(self, VT, X, n_components=10):
         """
@@ -107,6 +115,8 @@ class Visualizer:
         plt.suptitle("Prime 10 Eigenfaces")
         filepath = os.path.join(self.path, 'eigenfaces.png')
         plt.savefig(filepath)
+        plt.show()
+        plt.close()
 
     def plot_cumulative_energy(self, energy):
         """
@@ -128,6 +138,8 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'cumulative_energy.png')
         plt.savefig(filepath)
+        plt.show()
+        plt.close()
 
     # ---------------------------- Geometria nello spazio ridotto ----------------------------
 
@@ -151,6 +163,8 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'projection.png')
         plt.savefig(filepath)
+        plt.show()
+        plt.close()
 
     # ---------------------------- Analisi classificazione ----------------------------
 
@@ -171,6 +185,8 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, 'confusion_matrix.png')
         plt.savefig(filepath)
+        plt.show()
+        plt.close()
 
     def plot_distance_distribution(self, distances_test, threshold, filename='distance_distribution.png'):
         """
@@ -192,6 +208,8 @@ class Visualizer:
         plt.tight_layout()
         filepath = os.path.join(self.path, filename)
         plt.savefig(filepath)
+        plt.show()
+        plt.close()
 
     # ---------------------------- Ricostruzione ----------------------------
 
@@ -225,6 +243,8 @@ class Visualizer:
         plt.suptitle("Confronto Originali vs Ricostruiti", fontsize=16, fontweight='bold')
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.savefig(os.path.join(self.path, 'all_reconstructions.png'), bbox_inches='tight')
+        plt.show()
+        plt.close()
 
     def plot_original_vs_reconstructed_lfw(self, X_original, X_reconstructed, y_true, X, num_samples=5):
         """
@@ -254,6 +274,8 @@ class Visualizer:
         plt.suptitle("Confronto Originali vs Ricostruiti", fontsize=16, fontweight='bold')
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.savefig(os.path.join(self.path, 'all_reconstructions.png'), bbox_inches='tight')
+        plt.show()
+        plt.close()
         
 
     # ----------------------------  Unknown detection ----------------------------
@@ -278,6 +300,7 @@ class Visualizer:
 
         plt.tight_layout()
         plt.savefig(os.path.join(self.path, filepath), bbox_inches='tight')
+        plt.show()
         plt.close()
 
     def plot_unknown_detection_results(self, X_ud, y_ud, results_ud, X_ref, n_samples=10):
@@ -343,6 +366,7 @@ class Visualizer:
         plt.grid(True, alpha=0.3)
         filepath = os.path.join(self.path, 'reconstruction_error.png')
         plt.savefig(filepath)
+        plt.show()
         plt.close()
 
     # ----------------------------  utils ----------------------------

@@ -76,66 +76,15 @@ class FaceRecognizer:
             predicted_id = self.knn.predict(face_reduced)[0]
             return predicted_id, min_dist
 
-    def simulate_unknown_detection(self, X_flat, X_train, mean_face, svd_reducer, seed=0):
+    @staticmethod
+    def simulate_unknown_detection(X_flat, seed=0):
         """
-        Sanity check: genera un volto sintetico di puro rumore casuale
-        e verifica che venga correttamente rifiutato come sconosciuto.
+        Sanity check: genera un volto sintetico di puro rumore casuale e verifica che venga correttamente rifiutato come sconosciuto.
         Un volto di rumore DEVE sempre restituire 'UNKNOWN'.
         """
         np.random.seed(seed)
         unknown_face = np.random.rand(1, X_flat.shape[1])
-
-        # Riusa detect_unknown per coerenza — stessa logica, stessa metrica
-        label, min_dist = self.detect_unknown(unknown_face, mean_face, svd_reducer, X_train)
-
-        print(f"Distanza minima trovata: {min_dist:.3f}")
-        print(f"Soglia attiva: {self.unknown_threshold:.3f}")
-
-        if label == "UNKNOWN":
-            print("Volto NON riconosciuto (UNKNOWN) — comportamento corretto")
-        else:
-            print(f"Volto riconosciuto come ID: {label} — soglia probabilmente troppo alta!")
-
-        # Riduzione SVD per eventuale uso esterno (es. Visualizzazione)
-        unknown_svd = svd_reducer.transform(unknown_face - mean_face)
-
-        return unknown_face, unknown_svd, min_dist, label
-
-    def optimize_unknown_threshold(self, X_train, X_val):
-        """
-        Calcola automaticamente la soglia ottimale per unknown detection
-        basandosi sulla distribuzione delle distanze minime sul validation set.
-        Soglia = media + 2 * deviazione standard (copre ~97.5% dei volti noti).
-
-        Nota: questo metodo calibra la soglia solo sui NOTI.
-        Per una calibrazione più precisa che usa anche esempi di sconosciuti reali,
-        usa calibrate_threshold_with_unknowns().
-        """
-        distances = self.compute_min_distances(X_val, X_train)
-
-        mean_d = float(np.mean(distances))
-        std_d = float(np.std(distances))
-        optimal_threshold = mean_d + 2 * std_d
-        self.unknown_threshold = optimal_threshold
-
-        result = {
-            'optimal_threshold': optimal_threshold,
-            'distance_stats': {
-                'mean': mean_d,
-                'std': std_d,
-                'median': float(np.median(distances)),
-                'p95': float(np.percentile(distances, 95))
-            }
-        }
-
-        print(f"\nSoglia (mean+2σ): {optimal_threshold:.3f}")
-        print(
-            f"   mean={mean_d:.3f} | std={std_d:.3f} | "
-            f"median={result['distance_stats']['median']:.3f} | "
-            f"p95={result['distance_stats']['p95']:.3f}"
-        )
-
-        return result
+        return unknown_face
 
     # ---------------------------- Cross Validation e Analisi Errori ----------------------------
 

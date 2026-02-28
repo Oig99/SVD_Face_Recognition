@@ -223,8 +223,8 @@ def main():
 
     except FileNotFoundError:
         print("Immagine non trovata, genero volto casuale come placeholder...")
-        unknown_face, _, _, _ = recognizer.simulate_unknown_detection(
-            dataset.X_flat, X_train, dataset.mean_face, svd_reducer
+        unknown_face = recognizer.simulate_unknown_detection(
+            dataset.X_flat
         )
 
     print(f"Shape volto: {unknown_face.shape}")
@@ -244,18 +244,6 @@ def main():
         print("Volto NON riconosciuto (sconosciuto)")
     else:
         print(f"Volto riconosciuto come ID: {label}")
-
-    # --- Ottimizzazione soglia ---
-    print("\nOttimizzazione soglia unknown detection...")
-    recognizer.optimize_unknown_threshold(X_train, X_test)
-
-    # --- Ri-test con soglia aggiornata ---
-    label, distance = recognizer.detect_unknown(
-        unknown_face,
-        dataset.mean_face,
-        svd_reducer,
-        X_train
-    )
 
     # --- Visualizzazione ---
     viz.plot_new_faces(
